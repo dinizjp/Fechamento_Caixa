@@ -1,0 +1,11 @@
+[theme]
+primaryColor = '#070D33'
+backgroundColor = '#FFFFFF'
+secondaryBackgroundColor = '#F0F2F6'
+textColor = '#000000'
+
+
+[server]
+maxUploadSize = 400
+address = "192.168.88.141"
+port = 8501
