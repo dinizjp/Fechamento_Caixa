@@ -7,10 +7,10 @@ from datetime import datetime
 # Configurar a página
 st.set_page_config(page_title='Relatório Consolidado', layout='wide')
 
-server   = st.secrets["mssql"]["DB_SERVER"]
-database = st.secrets["mssql"]["DB_NAME"]
-username = st.secrets["mssql"]["DB_USER"]
-password = st.secrets["mssql"]["DB_PASSWORD"]
+server   = st.secrets["mssql"]["server"]
+database = st.secrets["mssql"]["database"]
+username = st.secrets["mssql"]["username"]
+password = st.secrets["mssql"]["password"]
 
 # Verificar se todas as variáveis de ambiente estão definidas (não serão exibidas senhas)
 if not all([server, database, username, password]):
