@@ -13,10 +13,11 @@ st.set_page_config(page_title='Relatório Consolidado', layout='wide')
 load_dotenv()  # Se necessário, especifique o caminho para o .env
 
 # Recuperar as credenciais do .env
-server = os.getenv('DB_SERVER')
-database = os.getenv('DB_NAME')
-username = os.getenv('DB_USER')
-password = os.getenv('DB_PASSWORD')
+server = st.secrets["db"]["DB_SERVER"]
+database = st.secrets["db"]["DB_NAME"]
+username = st.secrets["db"]["DB_USER"]
+password = st.secrets["db"]["DB_PASSWORD"]
+
 
 # Verificar se todas as variáveis de ambiente estão definidas
 if not all([server, database, username, password]):
