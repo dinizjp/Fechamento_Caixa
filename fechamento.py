@@ -38,13 +38,13 @@ st.write(f"Período selecionado: {start_date.strftime('%d/%m/%Y')} a {end_date.s
 
 # String de conexão usando os segredos
 connection_string = (
-    'DRIVER={ODBC Driver 18 for SQL Server};'
-    f'SERVER={server};'
-    f'DATABASE={database};'
-    f'UID={username};'
-    f'PWD={password};'
-    'Encrypt=yes;'
-    'TrustServerCertificate=yes;'
+    "DRIVER={ODBC Driver 17 for SQL Server};"
+    f"SERVER={server};"
+    f"DATABASE={database};"
+    f"UID={username};"
+    f"PWD={password};"
+    "Encrypt=yes;"
+    "TrustServerCertificate=yes;"
 )
 
 if st.button("Gerar Relatório Consolidado"):
