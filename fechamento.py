@@ -1,28 +1,20 @@
 import streamlit as st
 import pandas as pd
 import pyodbc
-import os
 import io
-from dotenv import load_dotenv
 from datetime import datetime
 
 # Configurar a página
 st.set_page_config(page_title='Relatório Consolidado', layout='wide')
 
-# Carregar variáveis do arquivo .env
-load_dotenv()  # Se necessário, especifique o caminho para o .env
+server   = st.secrets["mssql"]["DB_SERVER"]
+database = st.secrets["mssql"]["DB_NAME"]
+username = st.secrets["mssql"]["DB_USER"]
+password = st.secrets["mssql"]["DB_PASSWORD"]
 
-# Recuperar as credenciais do .env
-server = os.getenv('DB_SERVER')
-database = os.getenv('DB_NAME')
-username = os.getenv('DB_USER')
-password = os.getenv('DB_PASSWORD')
-
-
-
-# Verificar se todas as variáveis de ambiente estão definidas
+# Verificar se todas as variáveis de ambiente estão definidas (não serão exibidas senhas)
 if not all([server, database, username, password]):
-    st.error("Verifique se todas as variáveis de ambiente estão definidas corretamente no arquivo .env.")
+    st.error("Verifique se todas as variáveis de ambiente estão definidas corretamente no arquivo secrets.toml.")
     st.stop()
 else:
     st.write(f"Servidor: {server}")
@@ -33,18 +25,18 @@ st.title("Relatório Consolidado")
 
 # Seleção do período com dois widgets separados
 start_date = st.date_input("Data de Início", value=datetime(2025, 1, 1))
-end_date = st.date_input("Data de Fim", value=datetime.now())
+end_date   = st.date_input("Data de Fim", value=datetime.now())
 
 if start_date > end_date:
     st.error("A data de início não pode ser maior que a data de fim.")
     st.stop()
 
-# Converter datas para o formato SQL (YYYY-MM-DD)
+# Converter as datas para o formato SQL (YYYY-MM-DD)
 start_date_str = start_date.strftime('%Y-%m-%d')
-end_date_str = end_date.strftime('%Y-%m-%d')
+end_date_str   = end_date.strftime('%Y-%m-%d')
 st.write(f"Período selecionado: {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}")
 
-# String de conexão
+# String de conexão usando os segredos
 connection_string = (
     'DRIVER={ODBC Driver 18 for SQL Server};'
     f'SERVER={server};'
