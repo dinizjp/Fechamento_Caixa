@@ -281,6 +281,10 @@ if st.button("Gerar Relatório Consolidado"):
         if 'Valor' in df1.columns:
             df1['Valor'] = df1['Valor'].apply(remove_currency)
         
+        # Reordene o DataFrame df1 para que "ID Empresa" seja a primeira coluna na aba Relatorio
+        if 'ID Empresa' in df1.columns:
+            df1 = df1[['ID Empresa'] + [col for col in df1.columns if col != 'ID Empresa']]
+
         # Exibir os DataFrames para conferência (opcional)
         st.subheader("Pesquisa_Transferencias_Busca (Relatorio)")
         st.dataframe(df1)
@@ -326,7 +330,7 @@ if st.button("Gerar Relatório Consolidado"):
                 worksheet_result.write_formula(excel_row-1, 3, formula_vendas)
                 formula_transf = f"=SUMIFS(FechamentoCaixa!J:J,FechamentoCaixa!A:A,Resultado!A{excel_row},FechamentoCaixa!D:D,Resultado!C{excel_row})"
                 worksheet_result.write_formula(excel_row-1, 4, formula_transf)
-                formula_depositos = f'=SUMIFS(Relatorio!G:G,Relatorio!L:L,Resultado!A{excel_row},Relatorio!I:I,Resultado!C{excel_row},Relatorio!C:C,"FINANCEIRO PARA FINANCEIRO")'
+                formula_depositos = f'=SUMIFS(Relatorio!H:H,Relatorio!A:A,Resultado!A{excel_row},Relatorio!J:J,Resultado!C{excel_row},Relatorio!D:D,"FINANCEIRO PARA FINANCEIRO")'
                 worksheet_result.write_formula(excel_row-1, 5, formula_depositos)
                 formula_saidas = f'=SUMIFS(\'Contas a Pagar\'!G:G,\'Contas a Pagar\'!A:A,Resultado!A{excel_row},\'Contas a Pagar\'!D:D,Resultado!C{excel_row},\'Contas a Pagar\'!H:H,"Saidas")'
                 worksheet_result.write_formula(excel_row-1, 6, formula_saidas)
@@ -369,6 +373,15 @@ if st.button("Gerar Relatório Consolidado"):
             ws_contas = writer.sheets["Contas a Pagar"]
             format_worksheet_as_table(ws_contas, df2, "TableContasAPagar")
             
+            nova_coluna = []
+            for i in range(df3.shape[0]):
+                excel_row = i + 2  # Considerando que a linha 1 é o cabeçalho
+                formula_conf = f"=IF(G{excel_row}-K{excel_row}=0,0,G{excel_row}-K{excel_row}-L{excel_row})"
+                nova_coluna.append(formula_conf)
+            
+            df3["conferência fundo de troco"] = nova_coluna
+            
+            # Escreve o DataFrame atualizado (com a nova coluna) para a planilha
             df3.to_excel(writer, index=False, sheet_name='FechamentoCaixa')
             ws_fechamento = writer.sheets["FechamentoCaixa"]
             format_worksheet_as_table(ws_fechamento, df3, "TableFechamentoCaixa")
@@ -378,15 +391,7 @@ if st.button("Gerar Relatório Consolidado"):
             ws_depara = writer.sheets["De para"]
             format_worksheet_as_table(ws_depara, mapping_df, "TableDePara")
             
-            # Exemplo de adição de fórmula na aba FechamentoCaixa para "conferência fundo de troco"
-            worksheet_fc = ws_fechamento
-            n_cols_fc = len(df3.columns)  # Número de colunas atuais
-            worksheet_fc.write(0, n_cols_fc, "conferência fundo de troco")
-            n_rows_fc = df3.shape[0]
-            for r in range(1, n_rows_fc + 1):
-                excel_row = r + 1
-                formula_conf = f"=IF(G{excel_row}-K{excel_row}=0,0,G{excel_row}-K{excel_row}-L{excel_row})"
-                worksheet_fc.write_formula(r, n_cols_fc, formula_conf)
+            
             
         output.seek(0)
         
