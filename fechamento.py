@@ -328,7 +328,7 @@ if st.button("Gerar Relatório Consolidado"):
                 worksheet_result.write_formula(excel_row-1, 4, formula_transf)
                 formula_depositos = f'=SUMIFS(Relatorio!G:G,Relatorio!L:L,Resultado!A{excel_row},Relatorio!I:I,Resultado!C{excel_row},Relatorio!C:C,"FINANCEIRO PARA FINANCEIRO")'
                 worksheet_result.write_formula(excel_row-1, 5, formula_depositos)
-                formula_saidas = f'=SUMIFS(\'Contas a Pagar\'!G:G,\'Contas a Pagar\'!A:A,Resultado!A{excel_row},\'Contas a Pagar\'!E:E,Resultado!C{excel_row},\'Contas a Pagar\'!H:H,"Saidas")'
+                formula_saidas = f'=SUMIFS(\'Contas a Pagar\'!G:G,\'Contas a Pagar\'!A:A,Resultado!A{excel_row},\'Contas a Pagar\'!D:D,Resultado!C{excel_row},\'Contas a Pagar\'!H:H,"Saidas")'
                 worksheet_result.write_formula(excel_row-1, 6, formula_saidas)
                 formula_transf_deposito = f"=E{excel_row} - F{excel_row}"
                 worksheet_result.write_formula(excel_row-1, 7, formula_transf_deposito)
