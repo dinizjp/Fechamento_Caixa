@@ -34,7 +34,7 @@ start_date_str = start_date.strftime('%Y-%m-%d')
 end_date_str   = end_date.strftime('%Y-%m-%d')
 st.write(f"Período selecionado: {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}")
 
-# String de conexão (usa ODBC Driver 17 para testes; ajuste se necessário)
+# String de conexão (usa ODBC Driver 17 para testes)
 connection_string = (
     "DRIVER={ODBC Driver 17 for SQL Server};"
     f"SERVER={server};"
@@ -45,7 +45,7 @@ connection_string = (
     "TrustServerCertificate=yes;"
 )
 
-# Função para remover "R$" e converter para float de forma robusta
+# Função para remover "R$" e converter para float
 def remove_currency(val):
     try:
         if pd.isnull(val):
@@ -61,8 +61,8 @@ def remove_currency(val):
     except Exception:
         return None
 
-# Dicionário para mapeamento da coluna "Plano de Contas" (para a coluna "De Para")
-mapping_dict = {
+# Dicionário para mapeamento da coluna "Plano de Contas" (para a aba "Contas a Pagar")
+mapping_dict_plan = {
     "OUTRAS PERCAS": "outras percas",
     "COMPRA DE INSUMOS | COMPLEMENTOS": "Saidas",
     "COMPRAS LOCAIS ": "Saidas",
@@ -118,6 +118,24 @@ mapping_dict = {
     "MANUTENÇÕES - PLAYGROUND": "Saidas",
     "SERVIÇOS PRESTADOS POR TERCEIROS - PF": "Saidas",
     "FALTA DE CAIXA": "Saidas"
+}
+
+# Dicionário para mapeamento de ID_Empresa para Nome empresa (14 itens)
+id_empresa_mapping = {
+    58: 'Araguaína II',
+    66: 'Balsas II',
+    55: 'Araguaína I',
+    53: 'Imperatriz II', 
+    51: 'Imperatriz I',
+    65: 'Araguaína IV', 
+    52: 'Imperatriz III',
+    57: 'Araguaína III',
+    50: 'Balsas I', 
+    56: 'Gurupi I',  
+    61: 'Colinas',
+    60: 'Estreito',
+    46: 'Formosa I',
+    59: 'Guaraí'
 }
 
 if st.button("Gerar Relatório Consolidado"):
@@ -179,10 +197,10 @@ if st.button("Gerar Relatório Consolidado"):
         rows2 = cursor.fetchall()
         data2 = [dict(zip(columns2, row)) for row in rows2]
         df2 = pd.DataFrame(data2)
-        # Aplicar o mapeamento para criar a coluna "De Para" a partir de "Plano de Contas"
+        # Criar a coluna "De Para" a partir do mapeamento da coluna "Plano de Contas"
         if 'Plano de Contas' in df2.columns:
-            df2["De Para"] = df2["Plano de Contas"].map(mapping_dict).fillna("")
-        # Aplicar a função para remover "R$" na coluna "Valor", se existir
+            df2["De Para"] = df2["Plano de Contas"].map(mapping_dict_plan).fillna("")
+        # Aplicar a função remove_currency na coluna "Valor", se existir
         if 'Valor' in df2.columns:
             df2['Valor'] = df2['Valor'].apply(remove_currency)
         st.success("Query 2 executada!")
@@ -270,57 +288,65 @@ if st.button("Gerar Relatório Consolidado"):
         st.subheader("Fechamento de Caixa")
         st.dataframe(df3)
         
-        ### --- GERAR ARQUIVO EXCEL COM 4 ABAS ---
+        ### --- GERAR ARQUIVO EXCEL COM 5 ABAS ---
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            # Escreve as três abas com os DataFrames gerados
+            workbook = writer.book
+            # Criar a aba "Resultado" primeiro (para que ela fique como primeira planilha)
+            worksheet_result = workbook.add_worksheet('Resultado')
+            # Cabeçalhos da aba Resultado (9 colunas, sem "Suprimento")
+            result_headers = ["ID Empresa", "Nome empresa", "Data emissão", "Vendas em dinheiro", 
+                              "Valor transferência", "Depósitos", "Saídas", "Transf x Deposito", "Falta depositar"]
+            for col_num, header in enumerate(result_headers):
+                worksheet_result.write(0, col_num, header)
+            # Preencher a aba "Resultado" usando os 14 itens do dicionário id_empresa_mapping
+            mapping_items = list(id_empresa_mapping.items())
+            for i, (id_emp, nome_emp) in enumerate(mapping_items):
+                excel_row = i + 2  # Linha no Excel (linha 1 é o cabeçalho)
+                worksheet_result.write(excel_row-1, 0, id_emp)                            # Coluna A: ID Empresa
+                worksheet_result.write(excel_row-1, 1, nome_emp)                            # Coluna B: Nome empresa
+                worksheet_result.write(excel_row-1, 2, start_date.strftime("%d/%m/%Y"))       # Coluna C: Data emissão (usa data de início)
+                # Inserir as fórmulas para as demais colunas:
+                # Vendas em dinheiro (coluna D)
+                formula_vendas = f"=SUMIFS(FechamentoCaixa!H:H,FechamentoCaixa!A:A,Resultado!A{excel_row},FechamentoCaixa!D:D,Resultado!C{excel_row})"
+                worksheet_result.write_formula(excel_row-1, 3, formula_vendas)
+                # Valor transferência (coluna E)
+                formula_transf = f"=SUMIFS(FechamentoCaixa!J:J,FechamentoCaixa!A:A,Resultado!A{excel_row},FechamentoCaixa!D:D,Resultado!C{excel_row})"
+                worksheet_result.write_formula(excel_row-1, 4, formula_transf)
+                # Depósitos (coluna F)
+                formula_depositos = f'=SUMIFS(Relatorio!G:G,Relatorio!L:L,Resultado!A{excel_row},Relatorio!I:I,Resultado!C{excel_row},Relatorio!C:C,"FINANCEIRO PARA FINANCEIRO")'
+                worksheet_result.write_formula(excel_row-1, 5, formula_depositos)
+                # Saídas (coluna G)
+                formula_saidas = f'=SUMIFS(\'Contas a Pagar\'!G:G,\'Contas a Pagar\'!A:A,Resultado!A{excel_row},\'Contas a Pagar\'!E:E,Resultado!C{excel_row},\'Contas a Pagar\'!H:H,"Saidas")'
+                worksheet_result.write_formula(excel_row-1, 6, formula_saidas)
+                # Transf x Deposito (coluna H): = Valor transferência - Depósitos
+                formula_transf_deposito = f"=E{excel_row} - F{excel_row}"
+                worksheet_result.write_formula(excel_row-1, 7, formula_transf_deposito)
+                # Falta depositar (coluna I): = Valor transferência - Saídas - Depósitos
+                formula_falta_depositar = f"=E{excel_row} - G{excel_row} - F{excel_row}"
+                worksheet_result.write_formula(excel_row-1, 8, formula_falta_depositar)
+            
+            # Em seguida, escrever as demais abas
             df1.to_excel(writer, index=False, sheet_name='Relatorio')
             df2.to_excel(writer, index=False, sheet_name='Contas a Pagar')
             df3.to_excel(writer, index=False, sheet_name='FechamentoCaixa')
+            # Escrever a aba "De para" com o mapeamento do plano de contas
+            mapping_df = pd.DataFrame(list(mapping_dict_plan.items()), columns=["Plano de Contas", "De Para"])
+            mapping_df.to_excel(writer, index=False, sheet_name="De para")
             
-            # Cria a aba "Resultado" para consolidação
-            workbook  = writer.book
-            worksheet = workbook.add_worksheet('Resultado')
-            
-            # Cabeçalhos da aba Resultado
-            headers = ["ID Empresa", "Nome empresa", "Data emissão", "Suprimento", "Vendas em dinheiro", 
-                       "Valor transferência", "Depósitos", "Saídas", "Transf x Deposito", "Falta depositar"]
-            for col_num, header in enumerate(headers):
-                worksheet.write(0, col_num, header)
-            
-            # Preencher a aba "Resultado" para cada linha com base nos registros da aba "FechamentoCaixa"
-            n_rows = len(df3)
-            for i in range(n_rows):
-                excel_row = i + 2  # Linha no Excel (linha 1 é o cabeçalho)
-                # Preencher ID Empresa (coluna A) com df3["ID_Empresa"]
-                worksheet.write(excel_row-1, 0, df3.iloc[i]["ID_Empresa"])
-                # Preencher Data emissão (coluna C) com df3["Data Abertura"]
-                worksheet.write(excel_row-1, 2, str(df3.iloc[i]["Data Abertura"]))
-                
-                # Inserir as fórmulas para as demais colunas na aba "Resultado"
-                # Vendas em dinheiro (coluna E)
-                formula_vendas = f"=SUMIFS(FechamentoCaixa!H:H,FechamentoCaixa!A:A,Resultado!A{excel_row},FechamentoCaixa!D:D,Resultado!C{excel_row})"
-                worksheet.write_formula(excel_row-1, 4, formula_vendas)
-                
-                # Valor transferência (coluna F)
-                formula_transf = f"=SUMIFS(FechamentoCaixa!J:J,FechamentoCaixa!A:A,Resultado!A{excel_row},FechamentoCaixa!D:D,Resultado!C{excel_row})"
-                worksheet.write_formula(excel_row-1, 5, formula_transf)
-                
-                # Depósitos (coluna G)
-                formula_depositos = f'=SUMIFS(Relatorio!G:G,Relatorio!L:L,Resultado!A{excel_row},Relatorio!I:I,Resultado!C{excel_row},Relatorio!C:C,"FINANCEIRO PARA FINANCEIRO")'
-                worksheet.write_formula(excel_row-1, 6, formula_depositos)
-                
-                # Saídas (coluna H)
-                formula_saidas = f'=SUMIFS(\'Contas a Pagar\'!G:G,\'Contas a Pagar\'!A:A,Resultado!A{excel_row},\'Contas a Pagar\'!E:E,Resultado!C{excel_row},\'Contas a Pagar\'!H:H,"Saidas")'
-                worksheet.write_formula(excel_row-1, 7, formula_saidas)
-                
-                # Transf x Deposito (coluna I): = Valor transferência - Depósitos
-                formula_transf_deposito = f"=F{excel_row} - G{excel_row}"
-                worksheet.write_formula(excel_row-1, 8, formula_transf_deposito)
-                
-                # Falta depositar (coluna J): = Valor transferência - Saídas - Depósitos
-                formula_falta_depositar = f"=F{excel_row} - H{excel_row} - G{excel_row}"
-                worksheet.write_formula(excel_row-1, 9, formula_falta_depositar)
+            # Adicionar coluna "conferência fundo de troco" na aba "FechamentoCaixa"
+            worksheet_fc = writer.sheets["FechamentoCaixa"]
+            n_cols_fc = len(df3.columns)  # Número atual de colunas
+            worksheet_fc.write(0, n_cols_fc, "conferência fundo de troco")
+            n_rows_fc = df3.shape[0]
+            for r in range(1, n_rows_fc + 1):
+                excel_row = r + 1  # Linha no Excel (primeira linha é o cabeçalho)
+                # Supondo:
+                # - Suprimento está na coluna G (índice 6)
+                # - Ap_Ger_Nao_Trans está na coluna K (índice 10)
+                # - Apur_Ger_total está na coluna L (índice 11)
+                formula_conf = f"=IF(G{excel_row}-K{excel_row}=0,0,G{excel_row}-K{excel_row}-L{excel_row})"
+                worksheet_fc.write_formula(r, n_cols_fc, formula_conf)
             
         output.seek(0)
         
