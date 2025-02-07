@@ -84,7 +84,7 @@ mapping_dict_plan = {
     "TAXI E CONDUCOES": "Saidas",
     "REFEIÇÕES E LANCHES": "Saidas",
     "HONORÁRIOS ADVOCATÍCIOS": "Saidas",
-    "SALARIO PESSOAL": "Saidas",
+    "SALARIO PESSOAL": "Outras Saidas",
     "CONSULTORIA FINANCEIRA": "Saidas",
     "BONIFICAÇÃO": "Saidas",
     "DIÁRIA CHAPA": "Saidas",
