@@ -36,7 +36,7 @@ st.write(f"Período selecionado: {start_date.strftime('%d/%m/%Y')} a {end_date.s
 
 # String de conexão (usa ODBC Driver 17 para testes; ajuste se necessário)
 connection_string = (
-    "DRIVER={ODBC Driver 18 for SQL Server};"
+    "DRIVER={ODBC Driver 17 for SQL Server};"
     f"SERVER={server};"
     f"DATABASE={database};"
     f"UID={username};"
