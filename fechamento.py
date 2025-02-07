@@ -4,6 +4,7 @@ import pyodbc
 import os
 import io
 from datetime import datetime
+from xlsxwriter.utility import xl_col_to_name  # Para converter índice de coluna para notação (A, B, ...)
 
 # Configurar a página
 st.set_page_config(page_title='Relatório Consolidado', layout='wide')
@@ -34,7 +35,7 @@ start_date_str = start_date.strftime('%Y-%m-%d')
 end_date_str   = end_date.strftime('%Y-%m-%d')
 st.write(f"Período selecionado: {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}")
 
-# String de conexão (usa ODBC Driver 17 para testes)
+# String de conexão (usa ODBC Driver 18 para SQL Server)
 connection_string = (
     "DRIVER={ODBC Driver 17 for SQL Server};"
     f"SERVER={server};"
@@ -70,7 +71,7 @@ mapping_dict_plan = {
     "MANUTENÇÃO DE IMÓVEL": "Saidas",
     "VIGILANTES": "Saidas",
     "MATERIAIS DE USO E CONSUMO": "Saidas",
-    "ADIANTAMENTO DE LUCRO | ANA PAULA": "Saidas",
+    "ADIANTAMENTO DE LUCRO | ANA PAULA": "Outras Saidas",
     "MATERIAL DE ESCRITÓRIO": "Saidas",
     "COMPUTADORES E PERIFÉRICOS": "Saidas",
     "AGUA E SANEAMENTO": "Saidas",
@@ -91,14 +92,14 @@ mapping_dict_plan = {
     "SERVIÇOS DE LIMPEZA E CONSERVACAO": "Saidas",
     "CAPTACAO MOEDAS | TROCO": "Saidas",
     "RESCISOES TRABALHISTAS": "Saidas",
-    "ADIANTAMENTO DE LUCRO | PEDRO HENRIQUE": "Saidas",
+    "ADIANTAMENTO DE LUCRO | PEDRO HENRIQUE": "Outras Saidas",
     "DIARIAS DELIVERY | MOTOBOY": "Saidas",
     "FRETES E CARRETOS": "Saidas",
     "SERVIÇOS PRESTADOS POR TERCEIROS - PJ": "Saidas",
     "INSTALAÇÕES | MATERIAL BÁSICO": "Saidas",
     "DESPESAS DIVERSAS COM PESSOAL": "Saidas",
     "OUTRAS DESPESAS": "Saidas",
-    "PUBLICIDADE E PROPAGANDA": "Saidas",
+    "PUBLICIDADE E PROPAGANDA": "Outras Saidas",
     "FORMULÁRIOS E IMPRESSOS": "Saidas",
     "EXAMES MEDICOS TRABALHISTAS": "Saidas",
     "MANUTENÇÃO COMPUTADORES": "Saidas",
@@ -288,63 +289,102 @@ if st.button("Gerar Relatório Consolidado"):
         st.subheader("Fechamento de Caixa")
         st.dataframe(df3)
         
-        ### --- GERAR ARQUIVO EXCEL COM 5 ABAS ---
+        ### --- GERAR ARQUIVO EXCEL COM VÁRIAS ABAS ---
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             workbook = writer.book
-            # Criar a aba "Resultado" primeiro (para que ela fique como primeira planilha)
+            
+            # Função auxiliar para ajustar largura das colunas e adicionar tabela (com filtros)
+            def format_worksheet_as_table(worksheet, df, table_name):
+                for i, col in enumerate(df.columns):
+                    max_len = max(df[col].astype(str).map(len).max(), len(col))
+                    worksheet.set_column(i, i, max_len + 2)
+                n_rows, n_cols = df.shape
+                table_range = f"A1:{xl_col_to_name(n_cols-1)}{n_rows+1}"
+                worksheet.add_table(table_range, {
+                    'name': table_name,
+                    'columns': [{'header': col} for col in df.columns]
+                })
+            
+            # --- ABA RESULTADO ---
+            # Cria a aba "Resultado" manualmente (com cabeçalho, dados e fórmulas)
             worksheet_result = workbook.add_worksheet('Resultado')
-            # Cabeçalhos da aba Resultado (9 colunas, sem "Suprimento")
             result_headers = ["ID Empresa", "Nome empresa", "Data emissão", "Vendas em dinheiro", 
                               "Valor transferência", "Depósitos", "Saídas", "Transf x Deposito", "Falta depositar"]
+            # Escreve o cabeçalho
             for col_num, header in enumerate(result_headers):
                 worksheet_result.write(0, col_num, header)
-            # Preencher a aba "Resultado" usando os 14 itens do dicionário id_empresa_mapping
             mapping_items = list(id_empresa_mapping.items())
+            # Preenche cada linha com os dados e fórmulas
             for i, (id_emp, nome_emp) in enumerate(mapping_items):
-                excel_row = i + 2  # Linha no Excel (linha 1 é o cabeçalho)
-                worksheet_result.write(excel_row-1, 0, id_emp)                            # Coluna A: ID Empresa
-                worksheet_result.write(excel_row-1, 1, nome_emp)                            # Coluna B: Nome empresa
-                worksheet_result.write(excel_row-1, 2, start_date.strftime("%d/%m/%Y"))       # Coluna C: Data emissão (usa data de início)
-                # Inserir as fórmulas para as demais colunas:
-                # Vendas em dinheiro (coluna D)
+                excel_row = i + 2  # Linha no Excel (a primeira linha é o cabeçalho)
+                worksheet_result.write(excel_row-1, 0, id_emp)
+                worksheet_result.write(excel_row-1, 1, nome_emp)
+                worksheet_result.write(excel_row-1, 2, start_date.strftime("%d/%m/%Y"))
+                # Fórmulas:
                 formula_vendas = f"=SUMIFS(FechamentoCaixa!H:H,FechamentoCaixa!A:A,Resultado!A{excel_row},FechamentoCaixa!D:D,Resultado!C{excel_row})"
                 worksheet_result.write_formula(excel_row-1, 3, formula_vendas)
-                # Valor transferência (coluna E)
                 formula_transf = f"=SUMIFS(FechamentoCaixa!J:J,FechamentoCaixa!A:A,Resultado!A{excel_row},FechamentoCaixa!D:D,Resultado!C{excel_row})"
                 worksheet_result.write_formula(excel_row-1, 4, formula_transf)
-                # Depósitos (coluna F)
                 formula_depositos = f'=SUMIFS(Relatorio!G:G,Relatorio!L:L,Resultado!A{excel_row},Relatorio!I:I,Resultado!C{excel_row},Relatorio!C:C,"FINANCEIRO PARA FINANCEIRO")'
                 worksheet_result.write_formula(excel_row-1, 5, formula_depositos)
-                # Saídas (coluna G)
                 formula_saidas = f'=SUMIFS(\'Contas a Pagar\'!G:G,\'Contas a Pagar\'!A:A,Resultado!A{excel_row},\'Contas a Pagar\'!E:E,Resultado!C{excel_row},\'Contas a Pagar\'!H:H,"Saidas")'
                 worksheet_result.write_formula(excel_row-1, 6, formula_saidas)
-                # Transf x Deposito (coluna H): = Valor transferência - Depósitos
                 formula_transf_deposito = f"=E{excel_row} - F{excel_row}"
                 worksheet_result.write_formula(excel_row-1, 7, formula_transf_deposito)
-                # Falta depositar (coluna I): = Valor transferência - Saídas - Depósitos
                 formula_falta_depositar = f"=E{excel_row} - G{excel_row} - F{excel_row}"
                 worksheet_result.write_formula(excel_row-1, 8, formula_falta_depositar)
             
-            # Em seguida, escrever as demais abas
+            # --- Formatação da aba "Resultado" (auto-ajuste + tabela com filtros) ---
+            n_rows_result = len(mapping_items) + 1  # Cabeçalho + linhas de dados
+            n_cols_result = len(result_headers)
+            # Calcular largura para cada coluna:
+            col_widths = []
+            for j in range(n_cols_result):
+                header_len = len(result_headers[j])
+                if j == 0:  # ID Empresa
+                    max_data_len = max(len(str(id_emp)) for id_emp, _ in mapping_items) if mapping_items else header_len
+                    col_widths.append(max(header_len, max_data_len) + 2)
+                elif j == 1:  # Nome empresa
+                    max_data_len = max(len(str(nome_emp)) for _, nome_emp in mapping_items) if mapping_items else header_len
+                    col_widths.append(max(header_len, max_data_len) + 2)
+                elif j == 2:  # Data emissão (formato dd/mm/yyyy, 10 caracteres)
+                    col_widths.append(max(header_len, 10) + 2)
+                else:
+                    col_widths.append(header_len + 5)
+            for j, width in enumerate(col_widths):
+                worksheet_result.set_column(j, j, width)
+            table_range_result = f"A1:{xl_col_to_name(n_cols_result-1)}{n_rows_result}"
+            worksheet_result.add_table(table_range_result, {
+                'name': 'TableResultado',
+                'columns': [{'header': header} for header in result_headers]
+            })
+            
+            # --- Abas dos DataFrames ---
             df1.to_excel(writer, index=False, sheet_name='Relatorio')
+            ws_relatorio = writer.sheets["Relatorio"]
+            format_worksheet_as_table(ws_relatorio, df1, "TableRelatorio")
+            
             df2.to_excel(writer, index=False, sheet_name='Contas a Pagar')
+            ws_contas = writer.sheets["Contas a Pagar"]
+            format_worksheet_as_table(ws_contas, df2, "TableContasAPagar")
+            
             df3.to_excel(writer, index=False, sheet_name='FechamentoCaixa')
-            # Escrever a aba "De para" com o mapeamento do plano de contas
+            ws_fechamento = writer.sheets["FechamentoCaixa"]
+            format_worksheet_as_table(ws_fechamento, df3, "TableFechamentoCaixa")
+            
             mapping_df = pd.DataFrame(list(mapping_dict_plan.items()), columns=["Plano de Contas", "De Para"])
             mapping_df.to_excel(writer, index=False, sheet_name="De para")
+            ws_depara = writer.sheets["De para"]
+            format_worksheet_as_table(ws_depara, mapping_df, "TableDePara")
             
-            # Adicionar coluna "conferência fundo de troco" na aba "FechamentoCaixa"
-            worksheet_fc = writer.sheets["FechamentoCaixa"]
-            n_cols_fc = len(df3.columns)  # Número atual de colunas
+            # Exemplo de adição de fórmula na aba FechamentoCaixa para "conferência fundo de troco"
+            worksheet_fc = ws_fechamento
+            n_cols_fc = len(df3.columns)  # Número de colunas atuais
             worksheet_fc.write(0, n_cols_fc, "conferência fundo de troco")
             n_rows_fc = df3.shape[0]
             for r in range(1, n_rows_fc + 1):
-                excel_row = r + 1  # Linha no Excel (primeira linha é o cabeçalho)
-                # Supondo:
-                # - Suprimento está na coluna G (índice 6)
-                # - Ap_Ger_Nao_Trans está na coluna K (índice 10)
-                # - Apur_Ger_total está na coluna L (índice 11)
+                excel_row = r + 1
                 formula_conf = f"=IF(G{excel_row}-K{excel_row}=0,0,G{excel_row}-K{excel_row}-L{excel_row})"
                 worksheet_fc.write_formula(r, n_cols_fc, formula_conf)
             
