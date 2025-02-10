@@ -62,64 +62,30 @@ def remove_currency(val):
     except Exception:
         return None
 
-# Dicionário para mapeamento da coluna "Plano de Contas" (para a aba "Contas a Pagar")
+# Dicionário para mapeamento da coluna "Conta" (para a aba "Contas a Pagar")
 mapping_dict_plan = {
-    "OUTRAS PERCAS": "outras percas",
-    "COMPRA DE INSUMOS | COMPLEMENTOS": "Saidas",
-    "COMPRAS LOCAIS ": "Saidas",
-    "DIARIAS ATENDENTES": "Saidas",
-    "MANUTENÇÃO DE IMÓVEL": "Saidas",
-    "VIGILANTES": "Saidas",
-    "MATERIAIS DE USO E CONSUMO": "Saidas",
-    "ADIANTAMENTO DE LUCRO | ANA PAULA": "Outras Saidas",
-    "MATERIAL DE ESCRITÓRIO": "Saidas",
-    "COMPUTADORES E PERIFÉRICOS": "Saidas",
-    "AGUA E SANEAMENTO": "Saidas",
-    "COMPRA DE MERCADORIAS": "Saidas",
-    "COMISSOES TERCEIROS": "Saidas",
-    "TAXAS ADM - VENDAS APP TERCEIROS": "Saidas",
-    "COMPRA DE INSUMOS | EMBALAGENS": "Saidas",
-    "MATERIAL DE HIGIENE E LIMPEZA": "Saidas",
-    "COMPRA DE PERIFERICOS": "Saidas",
-    "TAXI E CONDUCOES": "Saidas",
-    "REFEIÇÕES E LANCHES": "Saidas",
-    "HONORÁRIOS ADVOCATÍCIOS": "Saidas",
-    "SALARIO PESSOAL": "Outras Saidas",
-    "CONSULTORIA FINANCEIRA": "Saidas",
-    "BONIFICAÇÃO": "Saidas",
-    "DIÁRIA CHAPA": "Saidas",
-    "DEPOSITO BANCARIO": "Saidas",
-    "SERVIÇOS DE LIMPEZA E CONSERVACAO": "Saidas",
-    "CAPTACAO MOEDAS | TROCO": "Saidas",
-    "RESCISOES TRABALHISTAS": "Saidas",
-    "ADIANTAMENTO DE LUCRO | PEDRO HENRIQUE": "Outras Saidas",
-    "DIARIAS DELIVERY | MOTOBOY": "Saidas",
-    "FRETES E CARRETOS": "Saidas",
-    "SERVIÇOS PRESTADOS POR TERCEIROS - PJ": "Saidas",
-    "INSTALAÇÕES | MATERIAL BÁSICO": "Saidas",
-    "DESPESAS DIVERSAS COM PESSOAL": "Saidas",
-    "OUTRAS DESPESAS": "Saidas",
-    "PUBLICIDADE E PROPAGANDA": "Outras Saidas",
-    "FORMULÁRIOS E IMPRESSOS": "Saidas",
-    "EXAMES MEDICOS TRABALHISTAS": "Saidas",
-    "MANUTENÇÃO COMPUTADORES": "Saidas",
-    "ORNAMENTACOES": "Saidas",
-    "MANUTENÇÃO MÓVEIS": "Saidas",
-    "ALUGUEIS IMOVEIS": "Saidas",
-    "MANUTENÇÃO ELETRICA": "Saidas",
-    "OBRAS | MATERIAL BASICO": "Saidas",
-    "MANUTENÇÃO MAQ. E EQUIPAMENTOS": "Saidas",
-    "BENS MÓVEIS - OPERACIONAL": "Saidas",
-    "DIARIAS MOTORISTAS": "Saidas",
-    "COPIAS E AUTENTICACOES": "Saidas",
-    "COMUNICAÇÃO VISUAL": "Saidas",
-    "COMBUSTIVEL DIVERSOS": "Saidas",
-    "COMPRA DE INSUMOS | ACAI": "Saidas",
-    "PREST. SERVIÇOS DE TERCEIROS - MARKETING": "Saidas",
-    "MANUTENÇÕES - PLAYGROUND": "Saidas",
-    "SERVIÇOS PRESTADOS POR TERCEIROS - PF": "Saidas",
-    "FALTA DE CAIXA": "Saidas"
+    " - ": "Outras saidas",
+    "66 - CAIXA TESOURARIA | FORMOSA": "Saídas",
+    "47 - CAIXA TESOURARIA | BALSAS": "Saídas",
+    "85 - CAIXA TESOURARIA- BAIXAS DOS COLABORADORES (CONSUMO AÇAI) VALE": "Outras saidas",
+    "7 - CAIXA TESOURARIA | ITZ PEDRO NEIVA": "Saídas",
+    "8 - CAIXA TESOURARIA | ITZ BS": "Saídas",
+    "71 - CAIXA TESOURARIA  | MOMÊ": "Saídas",
+    "60 - CAIXA TESOURARIA | CENTRAL": "Saídas",
+    "86 - CAIXA TESOURARIA MOMÊ VIA LAGO": "Saídas",
+    "13 - CAIXA TESOURARIA | GURUPI": "Saídas",
+    "5 - CAIXA TESOURARIA | ARN JB": "Saídas",
+    "9 - CAIXA TESOURARIA | ARN MN": "Saídas",
+    "88 - CAIXA TESOURARIA | GUARAI": "Saídas",
+    "100 - CAIXA TESOURARIA BAIXA CONSUMO AÇAI | T S MOURA ": "Outras saidas",
+    "92 - CAIXA TESOURARIA | COLINAS ": "Saídas",
+    "90 - CAIXA TESOURARIA | ESTREITO": "Saídas",
+    "99 - CAIXA TESOURARIA CANAÃ ": "Saídas",
+    "102 - CAIXA TESOURARIA VIA LAGO KIDS ": "Saídas",
+    "105 - CAIXA TESOURARIA BALSAS 02": "Saídas",
+    "101 - CAIXA TESOURARIA HUB | THIAGO ": "Saídas"
 }
+
 
 # Dicionário para mapeamento de ID_Empresa para Nome empresa (14 itens)
 id_empresa_mapping = {
@@ -181,6 +147,7 @@ if st.button("Gerar Relatório Consolidado"):
         SELECT 
              ID_Empresa,
              [Plano de Contas],
+             Conta,
              [Centro Custo],
              emissao,
              pagamento,
@@ -198,9 +165,9 @@ if st.button("Gerar Relatório Consolidado"):
         rows2 = cursor.fetchall()
         data2 = [dict(zip(columns2, row)) for row in rows2]
         df2 = pd.DataFrame(data2)
-        # Criar a coluna "De Para" a partir do mapeamento da coluna "Plano de Contas"
-        if 'Plano de Contas' in df2.columns:
-            df2["De Para"] = df2["Plano de Contas"].map(mapping_dict_plan).fillna("")
+        # Criar a coluna "De Para" a partir do mapeamento da coluna "Conta"
+        if 'Conta' in df2.columns:
+            df2["De Para"] = df2["Conta"].map(mapping_dict_plan).fillna("")
         # Aplicar a função remove_currency na coluna "Valor", se existir
         if 'Valor' in df2.columns:
             df2['Valor'] = df2['Valor'].apply(remove_currency)
@@ -332,7 +299,7 @@ if st.button("Gerar Relatório Consolidado"):
                 worksheet_result.write_formula(excel_row-1, 4, formula_transf)
                 formula_depositos = f'=SUMIFS(Relatorio!H:H,Relatorio!A:A,Resultado!A{excel_row},Relatorio!J:J,Resultado!C{excel_row},Relatorio!D:D,"FINANCEIRO PARA FINANCEIRO")'
                 worksheet_result.write_formula(excel_row-1, 5, formula_depositos)
-                formula_saidas = f'=SUMIFS(\'Contas a Pagar\'!G:G,\'Contas a Pagar\'!A:A,Resultado!A{excel_row},\'Contas a Pagar\'!D:D,Resultado!C{excel_row},\'Contas a Pagar\'!H:H,"Saidas")'
+                formula_saidas = f'=SUMIFS(\'Contas a Pagar\'!H:H,\'Contas a Pagar\'!A:A,Resultado!A{excel_row},\'Contas a Pagar\'!E:E,Resultado!C{excel_row},\'Contas a Pagar\'!I:I,"Saídas")'
                 worksheet_result.write_formula(excel_row-1, 6, formula_saidas)
                 formula_transf_deposito = f"=E{excel_row} - F{excel_row}"
                 worksheet_result.write_formula(excel_row-1, 7, formula_transf_deposito)
@@ -386,11 +353,11 @@ if st.button("Gerar Relatório Consolidado"):
             ws_fechamento = writer.sheets["FechamentoCaixa"]
             format_worksheet_as_table(ws_fechamento, df3, "TableFechamentoCaixa")
             
-            mapping_df = pd.DataFrame(list(mapping_dict_plan.items()), columns=["Plano de Contas", "De Para"])
+            # Atualizando a aba "De para" para refletir o novo mapeamento
+            mapping_df = pd.DataFrame(list(mapping_dict_plan.items()), columns=["Conta", "De Para"])
             mapping_df.to_excel(writer, index=False, sheet_name="De para")
             ws_depara = writer.sheets["De para"]
             format_worksheet_as_table(ws_depara, mapping_df, "TableDePara")
-            
             
             
         output.seek(0)
