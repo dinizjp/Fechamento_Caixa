@@ -25,7 +25,7 @@ else:
 
 st.title("Relatório Consolidado")
 
-# Seleção do período (widgets separados)
+# Seleção do período
 start_date = st.date_input("Data de Início", value=datetime(2025, 1, 1))
 end_date   = st.date_input("Data de Fim", value=datetime.now())
 if start_date > end_date:
@@ -35,7 +35,7 @@ start_date_str = start_date.strftime('%Y-%m-%d')
 end_date_str   = end_date.strftime('%Y-%m-%d')
 st.write(f"Período selecionado: {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}")
 
-# String de conexão (usa ODBC Driver 18 para SQL Server)
+# String de conexão (usa ODBC Driver 17 para SQL Server)
 connection_string = (
     "DRIVER={ODBC Driver 17 for SQL Server};"
     f"SERVER={server};"
@@ -62,7 +62,7 @@ def remove_currency(val):
     except Exception:
         return None
 
-# Dicionário para mapeamento da coluna "Conta" (para a aba "Contas a Pagar")
+# Novo dicionário para mapeamento da coluna "Conta" (para a aba "Contas a Pagar")
 mapping_dict_plan = {
     " - ": "Outras saidas",
     "66 - CAIXA TESOURARIA | FORMOSA": "Saídas",
@@ -77,17 +77,16 @@ mapping_dict_plan = {
     "5 - CAIXA TESOURARIA | ARN JB": "Saídas",
     "9 - CAIXA TESOURARIA | ARN MN": "Saídas",
     "88 - CAIXA TESOURARIA | GUARAI": "Saídas",
-    "100 - CAIXA TESOURARIA BAIXA CONSUMO AÇAI | T S MOURA ": "Outras saidas",
-    "92 - CAIXA TESOURARIA | COLINAS ": "Saídas",
+    "100 - CAIXA TESOURARIA BAIXA CONSUMO AÇAI | T S MOURA": "Outras saidas",
+    "92 - CAIXA TESOURARIA | COLINAS": "Saídas",
     "90 - CAIXA TESOURARIA | ESTREITO": "Saídas",
-    "99 - CAIXA TESOURARIA CANAÃ ": "Saídas",
-    "102 - CAIXA TESOURARIA VIA LAGO KIDS ": "Saídas",
+    "99 - CAIXA TESOURARIA CANAÃ": "Saídas",
+    "102 - CAIXA TESOURARIA VIA LAGO KIDS": "Saídas",
     "105 - CAIXA TESOURARIA BALSAS 02": "Saídas",
-    "101 - CAIXA TESOURARIA HUB | THIAGO ": "Saídas"
+    "101 - CAIXA TESOURARIA HUB | THIAGO": "Saídas"
 }
 
-
-# Dicionário para mapeamento de ID_Empresa para Nome empresa (14 itens)
+# Dicionário para mapeamento de ID_Empresa para Nome empresa
 id_empresa_mapping = {
     58: 'Araguaína II',
     66: 'Balsas II',
@@ -112,7 +111,7 @@ if st.button("Gerar Relatório Consolidado"):
         cursor = conn.cursor()
         st.success("Conexão estabelecida!")
         
-        ### --- EXECUÇÃO DAS 3 QUERIES ---
+        ### --- EXECUÇÃO DAS 3 QUERIES ORIGINAIS ---
         # Query 1: Pesquisa_Transferencias_Busca (aba "Relatorio")
         sql_query1 = f"""
         SELECT *
@@ -238,20 +237,58 @@ if st.button("Gerar Relatório Consolidado"):
         df3 = pd.DataFrame(data3)
         st.success("Query 3 executada!")
         
-        ### --- TRATAMENTO DOS DADOS: REMOVER HORÁRIO (mantendo somente a data) ---
+        ### --- EXECUÇÃO DA NOVA QUERY (Query 4: vendas trocadas) ---
+        sql_query4 = f"""
+        SELECT 
+            pr.*,
+            fc.DataAbertura,
+            fc.DataFechamento
+        FROM Pesquisa_Resumo_Conferencia_Apuracao pr
+        INNER JOIN Fechamento_Caixas fc ON
+            fc.ID_Caixa = pr.ID_Caixa AND
+            fc.ID_Empresa = pr.ID_Empresa AND
+            fc.ID_Origem_Caixa = pr.ID_Origem_Caixa 
+        WHERE 
+            fc.ID_Empresa IN (55, 58, 57, 65, 50, 66, 64, 61, 60, 46, 59, 56, 51, 53, 52) AND 
+            fc.ID_Origem_Caixa = 1 AND
+            fc.DataFechamento >= '{start_date_str}' AND
+            fc.DataFechamento <= '{end_date_str}'
+        ORDER BY fc.ID_Caixa;
+        """
+        st.info("Executando Query 4 (vendas trocadas)...")
+        cursor.execute(sql_query4)
+        columns4 = [col[0] for col in cursor.description]
+        rows4 = cursor.fetchall()
+        data4 = [dict(zip(columns4, row)) for row in rows4]
+        df4 = pd.DataFrame(data4)
+        st.success("Query 4 executada!")
+        
+        # --- TRATAMENTO DOS DADOS ---
+        # Remover horário das datas de df1, df2 e df3
         for df in [df1, df2, df3]:
             for col in df.columns:
                 if pd.api.types.is_datetime64_any_dtype(df[col]):
                     df[col] = df[col].dt.date
-        
+
         # Se a planilha "Relatorio" (df1) tiver a coluna "Valor", aplicar o tratamento
         if 'Valor' in df1.columns:
             df1['Valor'] = df1['Valor'].apply(remove_currency)
-        
-        # Reordene o DataFrame df1 para que "ID Empresa" seja a primeira coluna na aba Relatorio
+            
+        # Reordenar df1 para que "ID Empresa" seja a primeira coluna
         if 'ID Empresa' in df1.columns:
             df1 = df1[['ID Empresa'] + [col for col in df1.columns if col != 'ID Empresa']]
 
+        if 'ID_Empresa' in df4.columns:
+            df4 = df4[['ID_Empresa'] + [col for col in df4.columns if col != 'ID_Empresa']]
+        
+        # Tratamento específico para df4:
+        cols_to_float = ['Apurado_Sistema', 'Apurado_Operador', 'Apurado_Gerente', 'Diferenca_Operador', 'Diferenca_Gerente']
+        for col in cols_to_float:
+            if col in df4.columns:
+                df4[col] = pd.to_numeric(df4[col], errors='coerce')
+        if 'DataFechamento' in df4.columns:
+            df4['DataFechamento'] = pd.to_datetime(df4['DataFechamento']).dt.date
+        
         # Exibir os DataFrames para conferência (opcional)
         st.subheader("Pesquisa_Transferencias_Busca (Relatorio)")
         st.dataframe(df1)
@@ -259,6 +296,8 @@ if st.button("Gerar Relatório Consolidado"):
         st.dataframe(df2)
         st.subheader("Fechamento de Caixa")
         st.dataframe(df3)
+        st.subheader("vendas trocadas")
+        st.dataframe(df4)
         
         ### --- GERAR ARQUIVO EXCEL COM VÁRIAS ABAS ---
         output = io.BytesIO()
@@ -278,21 +317,17 @@ if st.button("Gerar Relatório Consolidado"):
                 })
             
             # --- ABA RESULTADO ---
-            # Cria a aba "Resultado" manualmente (com cabeçalho, dados e fórmulas)
             worksheet_result = workbook.add_worksheet('Resultado')
             result_headers = ["ID Empresa", "Nome empresa", "Data emissão", "Vendas em dinheiro", 
                               "Valor transferência", "Depósitos", "Saídas", "Transf x Deposito", "Falta depositar"]
-            # Escreve o cabeçalho
             for col_num, header in enumerate(result_headers):
                 worksheet_result.write(0, col_num, header)
             mapping_items = list(id_empresa_mapping.items())
-            # Preenche cada linha com os dados e fórmulas
             for i, (id_emp, nome_emp) in enumerate(mapping_items):
                 excel_row = i + 2  # Linha no Excel (a primeira linha é o cabeçalho)
                 worksheet_result.write(excel_row-1, 0, id_emp)
                 worksheet_result.write(excel_row-1, 1, nome_emp)
                 worksheet_result.write(excel_row-1, 2, start_date.strftime("%d/%m/%Y"))
-                # Fórmulas:
                 formula_vendas = f"=SUMIFS(FechamentoCaixa!H:H,FechamentoCaixa!A:A,Resultado!A{excel_row},FechamentoCaixa!D:D,Resultado!C{excel_row})"
                 worksheet_result.write_formula(excel_row-1, 3, formula_vendas)
                 formula_transf = f"=SUMIFS(FechamentoCaixa!J:J,FechamentoCaixa!A:A,Resultado!A{excel_row},FechamentoCaixa!D:D,Resultado!C{excel_row})"
@@ -306,20 +341,18 @@ if st.button("Gerar Relatório Consolidado"):
                 formula_falta_depositar = f"=E{excel_row} - G{excel_row} - F{excel_row}"
                 worksheet_result.write_formula(excel_row-1, 8, formula_falta_depositar)
             
-            # --- Formatação da aba "Resultado" (auto-ajuste + tabela com filtros) ---
-            n_rows_result = len(mapping_items) + 1  # Cabeçalho + linhas de dados
+            n_rows_result = len(mapping_items) + 1
             n_cols_result = len(result_headers)
-            # Calcular largura para cada coluna:
             col_widths = []
             for j in range(n_cols_result):
                 header_len = len(result_headers[j])
-                if j == 0:  # ID Empresa
+                if j == 0:
                     max_data_len = max(len(str(id_emp)) for id_emp, _ in mapping_items) if mapping_items else header_len
                     col_widths.append(max(header_len, max_data_len) + 2)
-                elif j == 1:  # Nome empresa
+                elif j == 1:
                     max_data_len = max(len(str(nome_emp)) for _, nome_emp in mapping_items) if mapping_items else header_len
                     col_widths.append(max(header_len, max_data_len) + 2)
-                elif j == 2:  # Data emissão (formato dd/mm/yyyy, 10 caracteres)
+                elif j == 2:
                     col_widths.append(max(header_len, 10) + 2)
                 else:
                     col_widths.append(header_len + 5)
@@ -340,25 +373,26 @@ if st.button("Gerar Relatório Consolidado"):
             ws_contas = writer.sheets["Contas a Pagar"]
             format_worksheet_as_table(ws_contas, df2, "TableContasAPagar")
             
+            # Adicionar coluna de conferência em df3
             nova_coluna = []
             for i in range(df3.shape[0]):
                 excel_row = i + 2  # Considerando que a linha 1 é o cabeçalho
                 formula_conf = f"=IF(G{excel_row}-K{excel_row}=0,0,G{excel_row}-K{excel_row}-L{excel_row})"
                 nova_coluna.append(formula_conf)
-            
             df3["conferência fundo de troco"] = nova_coluna
             
-            # Escreve o DataFrame atualizado (com a nova coluna) para a planilha
             df3.to_excel(writer, index=False, sheet_name='FechamentoCaixa')
             ws_fechamento = writer.sheets["FechamentoCaixa"]
             format_worksheet_as_table(ws_fechamento, df3, "TableFechamentoCaixa")
             
-            # Atualizando a aba "De para" para refletir o novo mapeamento
+            df4.to_excel(writer, index=False, sheet_name='vendas trocadas')
+            ws_vendas = writer.sheets["vendas trocadas"]
+            format_worksheet_as_table(ws_vendas, df4, "TableVendasTrocadas")
+            
             mapping_df = pd.DataFrame(list(mapping_dict_plan.items()), columns=["Conta", "De Para"])
             mapping_df.to_excel(writer, index=False, sheet_name="De para")
             ws_depara = writer.sheets["De para"]
             format_worksheet_as_table(ws_depara, mapping_df, "TableDePara")
-            
             
         output.seek(0)
         
