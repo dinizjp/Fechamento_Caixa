@@ -78,7 +78,7 @@ mapping_dict_plan = {
     "9 - CAIXA TESOURARIA | ARN MN": "Saídas",
     "88 - CAIXA TESOURARIA | GUARAI": "Saídas",
     "100 - CAIXA TESOURARIA BAIXA CONSUMO AÇAI | T S MOURA": "Outras saidas",
-    "92 - CAIXA TESOURARIA | COLINAS": "Saídas",
+    "92 - CAIXA TESOURARIA | COLINAS ": "Saídas",
     "90 - CAIXA TESOURARIA | ESTREITO": "Saídas",
     "99 - CAIXA TESOURARIA CANAÃ": "Saídas",
     "102 - CAIXA TESOURARIA VIA LAGO KIDS": "Saídas",
