@@ -64,7 +64,7 @@ def remove_currency(val):
 
 # Novo dicionário para mapeamento da coluna "Conta" (para a aba "Contas a Pagar")
 mapping_dict_plan = {
-    " - ": "Outras saidas",
+    "-": "Outras saidas",
     "66 - CAIXA TESOURARIA | FORMOSA": "Saídas",
     "47 - CAIXA TESOURARIA | BALSAS": "Saídas",
     "85 - CAIXA TESOURARIA- BAIXAS DOS COLABORADORES (CONSUMO AÇAI) VALE": "Outras saidas",
