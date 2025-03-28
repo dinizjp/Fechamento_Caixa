@@ -78,7 +78,7 @@ mapping_dict_plan = {
     "9 - CAIXA TESOURARIA | ARN MN": "Saídas",
     "88 - CAIXA TESOURARIA | GUARAI": "Saídas",
     "100 - CAIXA TESOURARIA BAIXA CONSUMO AÇAI | T S MOURA": "Outras saidas",
-    "92 - CAIXA TESOURARIA | COLINAS ": "Saídas",
+    "92 - CAIXA TESOURARIA | COLINAS": "Saídas",
     "90 - CAIXA TESOURARIA | ESTREITO": "Saídas",
     "99 - CAIXA TESOURARIA CANAÃ": "Saídas",
     "102 - CAIXA TESOURARIA VIA LAGO KIDS": "Saídas",
@@ -166,6 +166,7 @@ if st.button("Gerar Relatório Consolidado"):
         df2 = pd.DataFrame(data2)
         # Criar a coluna "De Para" a partir do mapeamento da coluna "Conta"
         if 'Conta' in df2.columns:
+            df2["Conta"] = df2["Conta"].str.strip()
             df2["De Para"] = df2["Conta"].map(mapping_dict_plan).fillna("")
         # Aplicar a função remove_currency na coluna "Valor", se existir
         if 'Valor' in df2.columns:
