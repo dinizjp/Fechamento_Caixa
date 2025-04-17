@@ -2,7 +2,11 @@
 
 ## Descrição do Projeto
 
-O projeto **Fechamento_Caixa** consiste em uma aplicação que gera relatórios consolidados de fechamento de caixa a partir de uma base de dados SQL Server. Utilizando Streamlit, a aplicação oferece uma interface amigável para selecionar o período de análise, conectar-se ao banco de dados, executar consultas específicas e apresentar os resultados em forma de tabelas. As consultas envolvem dados de transferências, contas a pagar, fechamento de caixa e outras operações financeiras, permitindo ao usuário obter uma visão consolidada e detalhada do fluxo financeiro em diferentes empresas e períodos.
+O projeto **Fechamento_Caixa** consiste em uma aplicação que gera relatórios consolidados de fechamento de caixa a partir de uma base de dados SQL Server. 
+
+Utilizando Streamlit, a aplicação oferece uma interface amigável para selecionar o período de análise, conectar-se ao banco de dados, executar consultas específicas e apresentar os resultados em forma de tabelas. 
+
+As consultas envolvem dados de transferências, contas a pagar, fechamento de caixa e outras operações financeiras, permitindo ao usuário obter uma visão consolidada e detalhada do fluxo financeiro em diferentes empresas e períodos.
 
 ## Sumário
 
