@@ -1,80 +1,40 @@
 # Fechamento_Caixa
 
-## Descrição do Projeto
-
-O projeto **Fechamento_Caixa** consiste em uma aplicação que gera relatórios consolidados de fechamento de caixa a partir de uma base de dados SQL Server. Utilizando Streamlit, a aplicação oferece uma interface amigável para selecionar o período de análise, conectar-se ao banco de dados, executar consultas específicas e apresentar os resultados em forma de tabelas. As consultas envolvem dados de transferências, contas a pagar, fechamento de caixa e outras operações financeiras, permitindo ao usuário obter uma visão consolidada e detalhada do fluxo financeiro em diferentes empresas e períodos.
+## Descrição
+O projeto **Fechamento_Caixa** é um sistema que realiza consultas e geração de relatórios relacionados ao fechamento de caixa, transferências, contas a pagar, e conferências de sangrias e vendas. Ele utiliza conexão com banco de dados SQL Server para extrair, processar e exibir informações relevantes por meio de uma interface web criada com Streamlit.
 
 ## Sumário
-
 - [Dependências](#dependências)
 - [Instalação](#instalação)
 - [Uso](#uso)
 - [Estrutura de Pastas](#estrutura-de-pastas)
 
 ## Dependências
-
-As bibliotecas necessárias para executar o projeto estão listadas no arquivo `requirements.txt`. São elas:
-
-- `streamlit`  
-- `pandas`
-- `pyodbc`
-- `python-dotenv`
-- `xlsxwriter`
-
-Além disso, recomenda-se a instalação do driver ODBC para conexão com SQL Server, listado em `packages.txt`:  
-- `msodbcsql17`
+As dependências do projeto estão listadas no arquivo `requirements.txt`:
+- streamlit
+- pandas
+- pyodbc
+- python-dotenv
+- xlsxwriter
 
 ## Instalação
-
-Para instalar as dependências do projeto, execute o seguinte comando na raiz do seu ambiente Python:
-
-```bash
+Para configurar o ambiente, execute os seguintes comandos:
+```sh
 pip install -r requirements.txt
 ```
 
-Certifique-se de que o driver ODBC (`msodbcsql17`) também esteja instalado conforme orientações do arquivo `packages.txt` para conexão com banco de dados.
-
 ## Uso
-
-1. Configure as credenciais de conexão ao banco de dados no arquivo `.streamlit/secrets.toml`, com o seguinte formato:
-
-```toml
-[mssql]
-server = "SEU_SERVIDOR"
-database = "SEU_BANCO_DE_DADOS"
-username = "SEU_USUARIO"
-password = "SUA_SENHA"
-```
-
-2. Execute a aplicação com o comando:
-
-```bash
+Para iniciar a aplicação, execute:
+```sh
 streamlit run fechamento.py
 ```
-
-3. Acesse a interface no navegador, geralmente disponível em `http://localhost:8501`.
-
-4. Selecione o período desejado e clique em "Gerar Relatório Consolidado" para obter os dados carregados a partir das consultas ao banco.
+Ao abrir a interface web, clique no botão **"Gerar Relatório Consolidado"** para estabelecer conexão com o banco de dados e executar as consultas que irão gerar os relatórios apresentados na aplicação.
 
 ## Estrutura de Pastas
-
-A estrutura do projeto é a seguinte:
-
 ```
 Fechamento_Caixa/
 ├── fechamento.py
-├── packages.txt
-└── requirements.txt
+├── requirements.txt
+└── .streamlit/
+    └── secrets.toml
 ```
-
-### Descrição dos Arquivos
-
-- **fechamento.py**: Script principal que contém a lógica da aplicação Streamlit, conexão com banco, consultas SQL e geração de relatórios visuais.
-- **packages.txt**: Lista de pacotes adicionais necessários para instalação do driver ODBC.
-- **requirements.txt**: Lista de bibliotecas Python necessárias para o funcionamento do projeto.
-
----
-
-## Observações finais
-
-Este projeto foi elaborado para facilitar a análise de fechamento de caixa e movimentações financeiras de diversas empresas. A interface permite uma interação dinâmica com os dados extraídos do banco de dados SQL Server, proporcionando uma visão consolidada e detalhada.
