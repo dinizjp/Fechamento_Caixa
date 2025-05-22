@@ -130,31 +130,74 @@ if st.button("Gerar Relatório Consolidado"):
             df2['Valor'] = df2['Valor'].apply(remove_currency)
         st.success("Query 2 executada!")
 
-        # --- Query 3 ---
+        
+        # Query 3: Fechamento de Caixa (aba "FechamentoCaixa")
         sql_query3 = f"""
-        SELECT
-          r.ID_Empresa,
-          r.ID_Caixa,
-          SUBSTRING(CONVERT(varchar,[DataAbertura],120),1,10) AS Data_Abertura_Str,
-          [DataAbertura],[Data fechamento],[Usuário],
-          CONVERT(float,Lancamento_Credito) AS Suprimento,
-          CONVERT(float,Vendas_dinheiro) AS Vendas_dinheiro,
-          CONVERT(float,Total_Entradas_Dinheiro) AS Total_Ent_Dinh,
-          CONVERT(float,ISNULL((SELECT SUM(ISNULL(valor,0)) FROM Financeiro_Transferencias t WHERE t.ID_Empresa=r.ID_Empresa AND t.ID_Caixa=r.ID_Caixa),0)) AS Transf_Tesour,
-          CONVERT(float,ISNULL(((SELECT SUM(apurado_gerente) FROM Fechamento_Caixa_Conferencia_Sangrias FG WHERE FG.ID_Empresa=r.ID_Empresa AND FG.ID_Caixa=r.ID_Caixa)-(SELECT SUM(ISNULL(valor,0)) FROM Financeiro_Transferencias t WHERE t.ID_Empresa=r.ID_Empresa AND t.ID_Caixa=r.ID_Caixa)),0)) AS Ap_Ger_Nao_Trans,
-          CONVERT(float,(SELECT SUM(apurado_gerente) FROM Fechamento_Caixa_Conferencia_Sangrias FG WHERE FG.ID_Empresa=r.ID_Empresa AND FG.ID_Caixa=r.ID_Caixa)) AS Apur_Ger_total,
-          CONVERT(float,((SELECT SUM(apurado_gerente) FROM Fechamento_Caixa_Conferencia_Sangrias FG WHERE FG.ID_Empresa=r.ID_Empresa AND FG.ID_Caixa=r.ID_Caixa)-Total_Entradas_Dinheiro)) AS SaldoFinal,
-          CASE WHEN ((SELECT SUM(apurado_gerente) FROM Fechamento_Caixa_Conferencia_Sangrias FG WHERE FG.ID_Empresa=r.ID_Empresa AND FG.ID_Caixa=r.ID_Caixa)-Total_Entradas_Dinheiro)<=-3 THEN 'Vale' ELSE 'Nao' END AS Vale
-        FROM View_FechamentoCaixa_Resumo r
-        INNER JOIN Pesquisa_Fechamento_Caixas c ON r.ID_Caixa=c.[ID Caixa] AND r.ID_Empresa=c.[ID Empresa]
-        WHERE r.ID_Empresa IN ({','.join(map(str,id_empresa_mapping.keys()))})
-          AND CONVERT(date,r.[DataAbertura]) BETWEEN '{start_date_str}' AND '{end_date_str}'
-          AND c.[ID Origem Caixa]=1
-        ORDER BY r.ID_Empresa,r.ID_Caixa,r.[Data Abertura];"""
+        SELECT 
+            r.ID_Empresa,
+            r.ID_Caixa,
+            SUBSTRING(CONVERT(varchar, [Data Abertura], 120), 1, 10) AS Data_Abertura_Str,
+            [Data Abertura],
+            [Data fechamento],
+            [Usuário],
+            CONVERT(float, Lancamento_Credito) AS Suprimento,
+            CONVERT(float, Vendas_dinheiro) AS Vendas_dinheiro, 
+            CONVERT(float, Total_Entradas_Dinheiro) AS Total_Ent_Dinh,
+            CONVERT(float, ISNULL(
+                 (SELECT ISNULL(valor, 0.00)
+                  FROM Financeiro_Transferencias t 
+                  WHERE t.ID_Empresa = r.ID_Empresa AND t.ID_Caixa = r.ID_Caixa), 0.00)
+                 ) AS Transf_Tesour, 
+            CONVERT(float, ISNULL(
+                 ((SELECT SUM(apurado_gerente)
+                   FROM Fechamento_Caixa_Conferencia_Sangrias FG 
+                   WHERE FG.ID_Empresa = r.ID_Empresa AND FG.ID_Caixa = r.ID_Caixa)
+                 - (SELECT ISNULL(valor, 0.00)
+                    FROM Financeiro_Transferencias t 
+                    WHERE t.ID_Empresa = r.ID_Empresa AND t.ID_Caixa = r.ID_Caixa)
+                 ), 0.00)
+                 ) AS Ap_Ger_Nao_Trans,
+            CONVERT(float, (SELECT SUM(apurado_gerente)
+                 FROM Fechamento_Caixa_Conferencia_Sangrias FG 
+                 WHERE FG.ID_Empresa = r.ID_Empresa AND FG.ID_Caixa = r.ID_Caixa)
+                 ) AS Apur_Ger_total,
+            CONVERT(float, 
+                 ((SELECT SUM(apurado_gerente)
+                   FROM Fechamento_Caixa_Conferencia_Sangrias FG 
+                   WHERE FG.ID_Empresa = r.ID_Empresa AND FG.ID_Caixa = r.ID_Caixa)
+                 - Total_Entradas_Dinheiro)
+                 ) AS SaldoFinal,
+            CASE 
+               WHEN ((SELECT ISNULL(SUM(apurado_gerente), 0.00)
+                      FROM Fechamento_Caixa_Conferencia_Sangrias FG 
+                      WHERE FG.ID_Empresa = r.ID_Empresa AND FG.ID_Caixa = r.ID_Caixa)
+                    - ISNULL(Total_Entradas_Dinheiro, 0.00)) <= -3.00 
+               THEN 'Vale' 
+               ELSE 'Nao' 
+            END AS Vale
+        FROM 
+            View_FechamentoCaixa_Resumo r
+        INNER JOIN 
+            Pesquisa_Fechamento_Caixas c 
+            ON r.ID_Caixa = [ID Caixa] AND r.ID_Empresa = [ID Empresa]
+        WHERE  
+            r.ID_Empresa IN (55,58,57,65,50,66,64,61,60,46,59,56,51,53,52)  
+            AND SUBSTRING(CONVERT(varchar, [Data Abertura], 120), 1, 10) >= '{start_date_str}'
+            AND SUBSTRING(CONVERT(varchar, [Data Abertura], 120), 1, 10) <= '{end_date_str}'
+            AND [ID_Origem_Caixa] = 1 
+        ORDER BY 
+            r.ID_Empresa, r.ID_Caixa, SUBSTRING(CONVERT(varchar, [Data Abertura], 120), 1, 10);
+        """
+        st.info("Executando Query 3...")
         cursor.execute(sql_query3)
-        df3 = pd.DataFrame([dict(zip([c[0] for c in cursor.description], row)) for row in cursor.fetchall()])
+        columns3 = [col[0] for col in cursor.description]
+        rows3 = cursor.fetchall()
+        data3 = [dict(zip(columns3, row)) for row in rows3]
+        df3 = pd.DataFrame(data3)
         st.success("Query 3 executada!")
 
+
+        
         # --- Query 4 ---
         sql_query4 = f"""
         SELECT pr.*,fc.DataAbertura,fc.DataFechamento
