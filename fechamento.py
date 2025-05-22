@@ -132,6 +132,7 @@ if st.button("Gerar Relatório Consolidado"):
 
         
         # Query 3: Fechamento de Caixa (aba "FechamentoCaixa")
+        
         sql_query3 = f"""
         SELECT 
             r.ID_Empresa,
@@ -179,15 +180,15 @@ if st.button("Gerar Relatório Consolidado"):
             View_FechamentoCaixa_Resumo r
         INNER JOIN 
             Pesquisa_Fechamento_Caixas c 
-            ON r.ID_Caixa = [ID Caixa] AND r.ID_Empresa = [ID Empresa]
+              ON r.ID_Caixa = c.[ID Caixa] AND r.ID_Empresa = c.[ID Empresa]
         WHERE  
             r.ID_Empresa IN (55,58,57,65,50,66,64,61,60,46,59,56,51,53,52)  
-            AND SUBSTRING(CONVERT(varchar, [Data Abertura], 120), 1, 10) >= '{start_date_str}'
-            AND SUBSTRING(CONVERT(varchar, [Data Abertura], 120), 1, 10) <= '{end_date_str}'
-            AND [ID_Origem_Caixa] = 1 
+            -- AQUI É O FILTRO DE DATA:
+            AND CONVERT(date, r.[Data Abertura]) BETWEEN '{start_date_str}' AND '{end_date_str}'
+            AND c.[ID Origem Caixa] = 1 
         ORDER BY 
-            r.ID_Empresa, r.ID_Caixa, SUBSTRING(CONVERT(varchar, [Data Abertura], 120), 1, 10);
-        """
+            r.ID_Empresa, r.ID_Caixa, r.[Data Abertura];
+"""
         st.info("Executando Query 3...")
         cursor.execute(sql_query3)
         columns3 = [col[0] for col in cursor.description]
