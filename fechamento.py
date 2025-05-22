@@ -135,8 +135,8 @@ if st.button("Gerar Relatório Consolidado"):
         SELECT
           r.ID_Empresa,
           r.ID_Caixa,
-          SUBSTRING(CONVERT(varchar,[Data Abertura],120),1,10) AS Data_Abertura_Str,
-          [Data Abertura],[Data fechamento],[Usuário],
+          SUBSTRING(CONVERT(varchar,[DataAbertura],120),1,10) AS Data_Abertura_Str,
+          [DataAbertura],[Data fechamento],[Usuário],
           CONVERT(float,Lancamento_Credito) AS Suprimento,
           CONVERT(float,Vendas_dinheiro) AS Vendas_dinheiro,
           CONVERT(float,Total_Entradas_Dinheiro) AS Total_Ent_Dinh,
@@ -148,7 +148,7 @@ if st.button("Gerar Relatório Consolidado"):
         FROM View_FechamentoCaixa_Resumo r
         INNER JOIN Pesquisa_Fechamento_Caixas c ON r.ID_Caixa=c.[ID Caixa] AND r.ID_Empresa=c.[ID Empresa]
         WHERE r.ID_Empresa IN ({','.join(map(str,id_empresa_mapping.keys()))})
-          AND CONVERT(date,r.[Data Abertura]) BETWEEN '{start_date_str}' AND '{end_date_str}'
+          AND CONVERT(date,r.[DataAbertura]) BETWEEN '{start_date_str}' AND '{end_date_str}'
           AND c.[ID Origem Caixa]=1
         ORDER BY r.ID_Empresa,r.ID_Caixa,r.[Data Abertura];"""
         cursor.execute(sql_query3)
