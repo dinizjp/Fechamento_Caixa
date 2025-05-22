@@ -99,12 +99,14 @@ if st.button("Gerar Relatório Consolidado"):
         conn = pyodbc.connect(connection_string)
         cursor = conn.cursor()
         st.success("Conexão estabelecida!")
-        cols = pd.read_sql("""
-            SELECT TABLE_SCHEMA, COLUMN_NAME
-              FROM INFORMATION_SCHEMA.COLUMNS
-             WHERE TABLE_NAME = 'View_FechamentoCaixa_Resumo'
-        """, conn)
-        st.write(cols)
+
+        # cols = pd.read_sql("""
+            # SELECT TABLE_SCHEMA, COLUMN_NAME
+              # FROM INFORMATION_SCHEMA.COLUMNS
+             # WHERE TABLE_NAME = 'View_FechamentoCaixa_Resumo'
+        # """, conn)
+        # st.write(cols)
+
         # --- Query 1 ---
         sql_query1 = f"""
         SELECT *
