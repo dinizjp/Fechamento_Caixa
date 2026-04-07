@@ -1,15 +1,12 @@
 import streamlit as st
 import pandas as pd
 import pyodbc
-import os
 import io
 from datetime import datetime
-from xlsxwriter.utility import xl_col_to_name  # Para converter índice de coluna para notação (A, B, ...)
+from xlsxwriter.utility import xl_col_to_name
 
-# Configurar a página
 st.set_page_config(page_title='Relatório Consolidado', layout='wide')
 
-# Recuperar as credenciais dos segredos (.streamlit/secrets.toml)
 server   = st.secrets["mssql"]["server"]
 database = st.secrets["mssql"]["database"]
 username = st.secrets["mssql"]["username"]
@@ -18,23 +15,20 @@ password = st.secrets["mssql"]["password"]
 if not all([server, database, username, password]):
     st.error("Verifique se todas as variáveis estão definidas corretamente no secrets.toml.")
     st.stop()
-else:
-    st.write(f"Servidor: {server}")
-    st.write(f"Banco de Dados: {database}")
-    st.write(f"Usuário: {username}")
 
 st.title("Relatório Consolidado")
 
-start_date = st.date_input( "Data de Início",  value=datetime.now())
-end_date   = st.date_input("Data de Fim", value=datetime.now())
+start_date = st.date_input("Data de Início", value=datetime.now())
+end_date   = st.date_input("Data de Fim",    value=datetime.now())
+
 if start_date > end_date:
     st.error("A data de início não pode ser maior que a data de fim.")
     st.stop()
+
 start_date_str = start_date.strftime('%Y-%m-%d')
 end_date_str   = end_date.strftime('%Y-%m-%d')
 st.write(f"Período selecionado: {start_date.strftime('%d/%m/%Y')} a {end_date.strftime('%d/%m/%Y')}")
 
-# String de conexão (usa ODBC Driver 17 para SQL Server)
 connection_string = (
     "DRIVER={ODBC Driver 17 for SQL Server};"
     f"SERVER={server};"
@@ -45,23 +39,19 @@ connection_string = (
     "TrustServerCertificate=yes;"
 )
 
-# Função para remover "R$" e converter para float
 def remove_currency(val):
     try:
         if pd.isnull(val):
             return None
         if isinstance(val, (int, float)):
             return float(val)
-        s = str(val).strip()
-        if "R$" in s:
-            s = s.replace("R$", "")
+        s = str(val).strip().replace("R$", "")
         if "," in s:
             s = s.replace(".", "").replace(",", ".")
         return float(s)
     except Exception:
         return None
 
-# Novo dicionário para mapeamento da coluna "Conta" (para a aba "Contas a Pagar")
 mapping_dict_plan = {
     "-": "Outras saidas",
     "66 - CAIXA TESOURARIA | FORMOSA": "Saídas",
@@ -85,23 +75,42 @@ mapping_dict_plan = {
     "101 - CAIXA TESOURARIA HUB | THIAGO": "Saídas"
 }
 
-# Dicionário para mapeamento de ID_Empresa para Nome empresa
 id_empresa_mapping = {
     58: 'Araguaína II',
     66: 'Balsas II',
     55: 'Araguaína I',
-    53: 'Imperatriz II', 
+    53: 'Imperatriz II',
     51: 'Imperatriz I',
-    65: 'Araguaína IV', 
+    65: 'Araguaína IV',
     52: 'Imperatriz III',
     57: 'Araguaína III',
-    50: 'Balsas I', 
-    56: 'Gurupi I',  
+    50: 'Balsas I',
+    56: 'Gurupi I',
     61: 'Colinas',
     60: 'Estreito',
     46: 'Formosa I',
     59: 'Guaraí'
 }
+
+def query_to_df(cursor, sql, params):
+    cursor.execute(sql, params)
+    columns = [col[0] for col in cursor.description]
+    return pd.DataFrame.from_records(cursor.fetchall(), columns=columns)
+
+def format_worksheet_as_table(worksheet, df, table_name):
+    for i, col in enumerate(df.columns):
+        if df.empty:
+            max_len = len(str(col))
+        else:
+            max_data = df[col].astype(str).map(len).max()
+            max_len = max(int(max_data) if pd.notna(max_data) else 0, len(str(col)))
+        worksheet.set_column(i, i, max_len + 2)
+    n_rows, n_cols = df.shape
+    table_range = f"A1:{xl_col_to_name(n_cols - 1)}{n_rows + 1}"
+    worksheet.add_table(table_range, {
+        'name': table_name,
+        'columns': [{'header': col} for col in df.columns]
+    })
 
 if st.button("Gerar Relatório Consolidado"):
     try:
@@ -109,40 +118,32 @@ if st.button("Gerar Relatório Consolidado"):
         conn = pyodbc.connect(connection_string)
         cursor = conn.cursor()
         st.success("Conexão estabelecida!")
-        
-        ### --- EXECUÇÃO DAS 3 QUERIES ORIGINAIS ---
-        # Query 1: Pesquisa_Transferencias_Busca (aba "Relatorio")
-        sql_query1 = f"""
+
+        params = (start_date_str, end_date_str)
+
+        sql_query1 = """
         SELECT *
         FROM Pesquisa_Transferencias_Busca
         WHERE (
               [ID Conta Origem] IN (
-                  SELECT ID_Conta 
+                  SELECT ID_Conta
                   FROM Financeiro_Contas_Acessos
                   WHERE ID_Usuario = 1 AND ISNULL(Visualizar, 'N') = 'S'
               )
               OR
               [ID Conta Destino] IN (
-                  SELECT ID_Conta 
+                  SELECT ID_Conta
                   FROM Financeiro_Contas_Acessos
                   WHERE ID_Usuario = 1 AND ISNULL(Visualizar, 'N') = 'S'
               )
         )
-        AND CONVERT(DATE, emissao) >= '{start_date_str}'
-        AND CONVERT(DATE, emissao) <= '{end_date_str}'
+        AND CONVERT(DATE, emissao) >= ?
+        AND CONVERT(DATE, emissao) <= ?
         ORDER BY emissao DESC;
         """
-        st.info("Executando Query 1...")
-        cursor.execute(sql_query1)
-        columns1 = [col[0] for col in cursor.description]
-        rows1 = cursor.fetchall()
-        data1 = [dict(zip(columns1, row)) for row in rows1]
-        df1 = pd.DataFrame(data1)
-        st.success("Query 1 executada!")
-        
-        # Query 2: view_Contas_a_Pagar (aba "Contas a Pagar")
-        sql_query2 = f"""
-        SELECT 
+
+        sql_query2 = """
+        SELECT
              ID_Empresa,
              [Plano de Contas],
              Conta,
@@ -153,28 +154,13 @@ if st.button("Gerar Relatório Consolidado"):
              Valor
         FROM view_Contas_a_Pagar
         WHERE ID_Situacao IN (0,1)
-          AND CONVERT(DATE, emissao) >= '{start_date_str}'
-          AND CONVERT(DATE, emissao) <= '{end_date_str}'
+          AND CONVERT(DATE, emissao) >= ?
+          AND CONVERT(DATE, emissao) <= ?
           AND ID_Empresa IN (55,58,57,65,50,66,64,61,60,46,59,56,51,53,52);
         """
-        st.info("Executando Query 2...")
-        cursor.execute(sql_query2)
-        columns2 = [col[0] for col in cursor.description]
-        rows2 = cursor.fetchall()
-        data2 = [dict(zip(columns2, row)) for row in rows2]
-        df2 = pd.DataFrame(data2)
-        # Criar a coluna "De Para" a partir do mapeamento da coluna "Conta"
-        if 'Conta' in df2.columns:
-            df2["Conta"] = df2["Conta"].str.strip()
-            df2["De Para"] = df2["Conta"].map(mapping_dict_plan).fillna("")
-        # Aplicar a função remove_currency na coluna "Valor", se existir
-        if 'Valor' in df2.columns:
-            df2['Valor'] = df2['Valor'].apply(remove_currency)
-        st.success("Query 2 executada!")
-        
-        # Query 3: Fechamento de Caixa (aba "FechamentoCaixa")
-        sql_query3 = f"""
-        SELECT 
+
+        sql_query3 = """
+        SELECT
             r.ID_Empresa,
             r.ID_Caixa,
             SUBSTRING(CONVERT(varchar, [Data_Abertura], 120), 1, 10) AS Data_Abertura_Str,
@@ -182,64 +168,56 @@ if st.button("Gerar Relatório Consolidado"):
             [Data_fechamento],
             [Usuário],
             CONVERT(float, Lancamento_Credito) AS Suprimento,
-            CONVERT(float, Vendas_dinheiro) AS Vendas_dinheiro, 
+            CONVERT(float, Vendas_dinheiro) AS Vendas_dinheiro,
             CONVERT(float, Total_Entradas_Dinheiro) AS Total_Ent_Dinh,
             CONVERT(float, ISNULL(
                  (SELECT ISNULL(valor, 0.00)
-                  FROM Financeiro_Transferencias t 
+                  FROM Financeiro_Transferencias t
                   WHERE t.ID_Empresa = r.ID_Empresa AND t.ID_Caixa = r.ID_Caixa), 0.00)
-                 ) AS Transf_Tesour, 
+                 ) AS Transf_Tesour,
             CONVERT(float, ISNULL(
                  ((SELECT SUM(apurado_gerente)
-                   FROM Fechamento_Caixa_Conferencia_Sangrias FG 
+                   FROM Fechamento_Caixa_Conferencia_Sangrias FG
                    WHERE FG.ID_Empresa = r.ID_Empresa AND FG.ID_Caixa = r.ID_Caixa)
                  - (SELECT ISNULL(valor, 0.00)
-                    FROM Financeiro_Transferencias t 
+                    FROM Financeiro_Transferencias t
                     WHERE t.ID_Empresa = r.ID_Empresa AND t.ID_Caixa = r.ID_Caixa)
                  ), 0.00)
                  ) AS Ap_Ger_Nao_Trans,
             CONVERT(float, (SELECT SUM(apurado_gerente)
-                 FROM Fechamento_Caixa_Conferencia_Sangrias FG 
+                 FROM Fechamento_Caixa_Conferencia_Sangrias FG
                  WHERE FG.ID_Empresa = r.ID_Empresa AND FG.ID_Caixa = r.ID_Caixa)
                  ) AS Apur_Ger_total,
-            CONVERT(float, 
+            CONVERT(float,
                  ((SELECT SUM(apurado_gerente)
-                   FROM Fechamento_Caixa_Conferencia_Sangrias FG 
+                   FROM Fechamento_Caixa_Conferencia_Sangrias FG
                    WHERE FG.ID_Empresa = r.ID_Empresa AND FG.ID_Caixa = r.ID_Caixa)
                  - Total_Entradas_Dinheiro)
                  ) AS SaldoFinal,
-            CASE 
+            CASE
                WHEN ((SELECT ISNULL(SUM(apurado_gerente), 0.00)
-                      FROM Fechamento_Caixa_Conferencia_Sangrias FG 
+                      FROM Fechamento_Caixa_Conferencia_Sangrias FG
                       WHERE FG.ID_Empresa = r.ID_Empresa AND FG.ID_Caixa = r.ID_Caixa)
-                    - ISNULL(Total_Entradas_Dinheiro, 0.00)) <= -3.00 
-               THEN 'Vale' 
-               ELSE 'Nao' 
+                    - ISNULL(Total_Entradas_Dinheiro, 0.00)) <= -3.00
+               THEN 'Vale'
+               ELSE 'Nao'
             END AS Vale
-        FROM 
+        FROM
             View_FechamentoCaixa_Resumo r
-        INNER JOIN 
-            Pesquisa_Fechamento_Caixas c 
+        INNER JOIN
+            Pesquisa_Fechamento_Caixas c
             ON r.ID_Caixa = [ID Caixa] AND r.ID_Empresa = [ID Empresa]
-        WHERE  
-            r.ID_Empresa IN (55,58,57,65,50,66,64,61,60,46,59,56,51,53,52)  
-            AND SUBSTRING(CONVERT(varchar, [Data_Abertura], 120), 1, 10) >= '{start_date_str}'
-            AND SUBSTRING(CONVERT(varchar, [Data_Abertura], 120), 1, 10) <= '{end_date_str}'
-            AND [ID_Origem_Caixa] = 1 
-        ORDER BY 
+        WHERE
+            r.ID_Empresa IN (55,58,57,65,50,66,64,61,60,46,59,56,51,53,52)
+            AND SUBSTRING(CONVERT(varchar, [Data_Abertura], 120), 1, 10) >= ?
+            AND SUBSTRING(CONVERT(varchar, [Data_Abertura], 120), 1, 10) <= ?
+            AND [ID_Origem_Caixa] = 1
+        ORDER BY
             r.ID_Empresa, r.ID_Caixa, SUBSTRING(CONVERT(varchar, [Data_Abertura], 120), 1, 10);
         """
-        st.info("Executando Query 3...")
-        cursor.execute(sql_query3)
-        columns3 = [col[0] for col in cursor.description]
-        rows3 = cursor.fetchall()
-        data3 = [dict(zip(columns3, row)) for row in rows3]
-        df3 = pd.DataFrame(data3)
-        st.success("Query 3 executada!")
-        
-        ### --- EXECUÇÃO DA NOVA QUERY (Query 4: vendas trocadas) ---
-        sql_query4 = f"""
-        SELECT 
+
+        sql_query4 = """
+        SELECT
             pr.*,
             fc.DataAbertura,
             fc.DataFechamento
@@ -247,49 +225,60 @@ if st.button("Gerar Relatório Consolidado"):
         INNER JOIN Fechamento_Caixas fc ON
             fc.ID_Caixa = pr.ID_Caixa AND
             fc.ID_Empresa = pr.ID_Empresa AND
-            fc.ID_Origem_Caixa = pr.ID_Origem_Caixa 
-        WHERE 
-            fc.ID_Empresa IN (55, 58, 57, 65, 50, 66, 64, 61, 60, 46, 59, 56, 51, 53, 52) AND 
+            fc.ID_Origem_Caixa = pr.ID_Origem_Caixa
+        WHERE
+            fc.ID_Empresa IN (55, 58, 57, 65, 50, 66, 64, 61, 60, 46, 59, 56, 51, 53, 52) AND
             fc.ID_Origem_Caixa = 1 AND
-            fc.DataFechamento >= '{start_date_str}' AND
-            fc.DataFechamento <= '{end_date_str}'
+            fc.DataFechamento >= ? AND
+            fc.DataFechamento <= ?
         ORDER BY fc.ID_Caixa;
         """
-        st.info("Executando Query 4 (vendas trocadas)...")
-        cursor.execute(sql_query4)
-        columns4 = [col[0] for col in cursor.description]
-        rows4 = cursor.fetchall()
-        data4 = [dict(zip(columns4, row)) for row in rows4]
-        df4 = pd.DataFrame(data4)
-        st.success("Query 4 executada!")
-        
-        # --- TRATAMENTO DOS DADOS ---
-        # Remover horário das datas de df1, df2 e df3
-        for df in [df1, df2, df3]:
-            for col in df.columns:
-                if pd.api.types.is_datetime64_any_dtype(df[col]):
-                    df[col] = df[col].dt.date
 
-        # Se a planilha "Relatorio" (df1) tiver a coluna "Valor", aplicar o tratamento
+        st.info("Executando Query 1...")
+        df1 = query_to_df(cursor, sql_query1, params)
+        st.success("Query 1 executada!")
+
+        st.info("Executando Query 2...")
+        df2 = query_to_df(cursor, sql_query2, params)
+        st.success("Query 2 executada!")
+
+        st.info("Executando Query 3...")
+        df3 = query_to_df(cursor, sql_query3, params)
+        st.success("Query 3 executada!")
+
+        st.info("Executando Query 4 (vendas trocadas)...")
+        df4 = query_to_df(cursor, sql_query4, params)
+        st.success("Query 4 executada!")
+
+        # --- TRATAMENTO DOS DADOS ---
+
+        # Remover horário das colunas datetime em df1, df2, df3
+        for df in [df1, df2, df3]:
+            for col in df.select_dtypes(include=['datetime64']).columns:
+                df[col] = df[col].dt.date
+
         if 'Valor' in df1.columns:
             df1['Valor'] = df1['Valor'].apply(remove_currency)
-            
-        # Reordenar df1 para que "ID Empresa" seja a primeira coluna
+
         if 'ID Empresa' in df1.columns:
-            df1 = df1[['ID Empresa'] + [col for col in df1.columns if col != 'ID Empresa']]
+            df1 = df1[['ID Empresa'] + [c for c in df1.columns if c != 'ID Empresa']]
+
+        if 'Conta' in df2.columns:
+            df2["Conta"] = df2["Conta"].str.strip()
+            df2["De Para"] = df2["Conta"].map(mapping_dict_plan).fillna("")
+        if 'Valor' in df2.columns:
+            df2['Valor'] = df2['Valor'].apply(remove_currency)
 
         if 'ID_Empresa' in df4.columns:
-            df4 = df4[['ID_Empresa'] + [col for col in df4.columns if col != 'ID_Empresa']]
-        
-        # Tratamento específico para df4:
+            df4 = df4[['ID_Empresa'] + [c for c in df4.columns if c != 'ID_Empresa']]
+
         cols_to_float = ['Apurado_Sistema', 'Apurado_Operador', 'Apurado_Gerente', 'Diferenca_Operador', 'Diferenca_Gerente']
         for col in cols_to_float:
             if col in df4.columns:
                 df4[col] = pd.to_numeric(df4[col], errors='coerce')
         if 'DataFechamento' in df4.columns:
             df4['DataFechamento'] = pd.to_datetime(df4['DataFechamento']).dt.date
-        
-        # Exibir os DataFrames para conferência (opcional)
+
         st.subheader("Pesquisa_Transferencias_Busca (Relatorio)")
         st.dataframe(df1)
         st.subheader("view_Contas_a_Pagar")
@@ -298,50 +287,32 @@ if st.button("Gerar Relatório Consolidado"):
         st.dataframe(df3)
         st.subheader("vendas trocadas")
         st.dataframe(df4)
-        
-        ### --- GERAR ARQUIVO EXCEL COM VÁRIAS ABAS ---
+
+        # --- GERAR ARQUIVO EXCEL ---
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             workbook = writer.book
-            
-            # Função auxiliar para ajustar largura das colunas e adicionar tabela (com filtros)
-            def format_worksheet_as_table(worksheet, df, table_name):
-                for i, col in enumerate(df.columns):
-                    max_len = max(df[col].astype(str).map(len).max(), len(col))
-                    worksheet.set_column(i, i, max_len + 2)
-                n_rows, n_cols = df.shape
-                table_range = f"A1:{xl_col_to_name(n_cols-1)}{n_rows+1}"
-                worksheet.add_table(table_range, {
-                    'name': table_name,
-                    'columns': [{'header': col} for col in df.columns]
-                })
-            
-            # --- ABA RESULTADO ---
+
+            # Aba Resultado
             worksheet_result = workbook.add_worksheet('Resultado')
-            result_headers = ["ID Empresa", "Nome empresa", "Data emissão", "Vendas em dinheiro", 
+            result_headers = ["ID Empresa", "Nome empresa", "Data emissão", "Vendas em dinheiro",
                               "Valor transferência", "Depósitos", "Saídas", "Transf x Deposito", "Falta depositar"]
             for col_num, header in enumerate(result_headers):
                 worksheet_result.write(0, col_num, header)
+
             mapping_items = list(id_empresa_mapping.items())
             for i, (id_emp, nome_emp) in enumerate(mapping_items):
-                excel_row = i + 2  # Linha no Excel (a primeira linha é o cabeçalho)
-                worksheet_result.write(excel_row-1, 0, id_emp)
-                worksheet_result.write(excel_row-1, 1, nome_emp)
-                worksheet_result.write(excel_row-1, 2, start_date.strftime("%d/%m/%Y"))
-                formula_vendas = f"=SUMIFS(FechamentoCaixa!H:H,FechamentoCaixa!A:A,Resultado!A{excel_row},FechamentoCaixa!D:D,Resultado!C{excel_row})"
-                worksheet_result.write_formula(excel_row-1, 3, formula_vendas)
-                formula_transf = f"=SUMIFS(FechamentoCaixa!J:J,FechamentoCaixa!A:A,Resultado!A{excel_row},FechamentoCaixa!D:D,Resultado!C{excel_row})"
-                worksheet_result.write_formula(excel_row-1, 4, formula_transf)
-                formula_depositos = f'=SUMIFS(Relatorio!H:H,Relatorio!A:A,Resultado!A{excel_row},Relatorio!J:J,Resultado!C{excel_row},Relatorio!D:D,"FINANCEIRO PARA FINANCEIRO")'
-                worksheet_result.write_formula(excel_row-1, 5, formula_depositos)
-                formula_saidas = f'=SUMIFS(\'Contas a Pagar\'!H:H,\'Contas a Pagar\'!A:A,Resultado!A{excel_row},\'Contas a Pagar\'!E:E,Resultado!C{excel_row},\'Contas a Pagar\'!I:I,"Saídas")'
-                worksheet_result.write_formula(excel_row-1, 6, formula_saidas)
-                formula_transf_deposito = f"=E{excel_row} - F{excel_row}"
-                worksheet_result.write_formula(excel_row-1, 7, formula_transf_deposito)
-                formula_falta_depositar = f"=E{excel_row} - G{excel_row} - F{excel_row}"
-                worksheet_result.write_formula(excel_row-1, 8, formula_falta_depositar)
-            
-            n_rows_result = len(mapping_items) + 1
+                r = i + 2  # linha Excel (1-indexed, linha 1 é cabeçalho)
+                worksheet_result.write(r - 1, 0, id_emp)
+                worksheet_result.write(r - 1, 1, nome_emp)
+                worksheet_result.write(r - 1, 2, start_date.strftime("%d/%m/%Y"))
+                worksheet_result.write_formula(r - 1, 3, f"=SUMIFS(FechamentoCaixa!H:H,FechamentoCaixa!A:A,Resultado!A{r},FechamentoCaixa!D:D,Resultado!C{r})")
+                worksheet_result.write_formula(r - 1, 4, f"=SUMIFS(FechamentoCaixa!J:J,FechamentoCaixa!A:A,Resultado!A{r},FechamentoCaixa!D:D,Resultado!C{r})")
+                worksheet_result.write_formula(r - 1, 5, f'=SUMIFS(Relatorio!H:H,Relatorio!A:A,Resultado!A{r},Relatorio!J:J,Resultado!C{r},Relatorio!D:D,"FINANCEIRO PARA FINANCEIRO")')
+                worksheet_result.write_formula(r - 1, 6, f'=SUMIFS(\'Contas a Pagar\'!H:H,\'Contas a Pagar\'!A:A,Resultado!A{r},\'Contas a Pagar\'!E:E,Resultado!C{r},\'Contas a Pagar\'!I:I,"Saídas")')
+                worksheet_result.write_formula(r - 1, 7, f"=E{r} - F{r}")
+                worksheet_result.write_formula(r - 1, 8, f"=E{r} - G{r} - F{r}")
+
             n_cols_result = len(result_headers)
             col_widths = []
             for j in range(n_cols_result):
@@ -358,51 +329,42 @@ if st.button("Gerar Relatório Consolidado"):
                     col_widths.append(header_len + 5)
             for j, width in enumerate(col_widths):
                 worksheet_result.set_column(j, j, width)
-            table_range_result = f"A1:{xl_col_to_name(n_cols_result-1)}{n_rows_result}"
-            worksheet_result.add_table(table_range_result, {
+
+            n_rows_result = len(mapping_items) + 1
+            worksheet_result.add_table(f"A1:{xl_col_to_name(n_cols_result - 1)}{n_rows_result}", {
                 'name': 'TableResultado',
-                'columns': [{'header': header} for header in result_headers]
+                'columns': [{'header': h} for h in result_headers]
             })
-            
-            # --- Abas dos DataFrames ---
+
+            # Abas dos DataFrames
             df1.to_excel(writer, index=False, sheet_name='Relatorio')
-            ws_relatorio = writer.sheets["Relatorio"]
-            format_worksheet_as_table(ws_relatorio, df1, "TableRelatorio")
-            
+            format_worksheet_as_table(writer.sheets["Relatorio"], df1, "TableRelatorio")
+
             df2.to_excel(writer, index=False, sheet_name='Contas a Pagar')
-            ws_contas = writer.sheets["Contas a Pagar"]
-            format_worksheet_as_table(ws_contas, df2, "TableContasAPagar")
-            
-            # Adicionar coluna de conferência em df3
-            nova_coluna = []
-            for i in range(df3.shape[0]):
-                excel_row = i + 2  # Considerando que a linha 1 é o cabeçalho
-                formula_conf = f"=IF(G{excel_row}-K{excel_row}=0,0,G{excel_row}-K{excel_row}-L{excel_row})"
-                nova_coluna.append(formula_conf)
-            df3["conferência fundo de troco"] = nova_coluna
-            
+            format_worksheet_as_table(writer.sheets["Contas a Pagar"], df2, "TableContasAPagar")
+
+            df3["conferência fundo de troco"] = [
+                f"=IF(G{i+2}-K{i+2}=0,0,G{i+2}-K{i+2}-L{i+2})"
+                for i in range(df3.shape[0])
+            ]
             df3.to_excel(writer, index=False, sheet_name='FechamentoCaixa')
-            ws_fechamento = writer.sheets["FechamentoCaixa"]
-            format_worksheet_as_table(ws_fechamento, df3, "TableFechamentoCaixa")
-            
+            format_worksheet_as_table(writer.sheets["FechamentoCaixa"], df3, "TableFechamentoCaixa")
+
             df4.to_excel(writer, index=False, sheet_name='vendas trocadas')
-            ws_vendas = writer.sheets["vendas trocadas"]
-            format_worksheet_as_table(ws_vendas, df4, "TableVendasTrocadas")
-            
+            format_worksheet_as_table(writer.sheets["vendas trocadas"], df4, "TableVendasTrocadas")
+
             mapping_df = pd.DataFrame(list(mapping_dict_plan.items()), columns=["Conta", "De Para"])
             mapping_df.to_excel(writer, index=False, sheet_name="De para")
-            ws_depara = writer.sheets["De para"]
-            format_worksheet_as_table(ws_depara, mapping_df, "TableDePara")
-            
+            format_worksheet_as_table(writer.sheets["De para"], mapping_df, "TableDePara")
+
         output.seek(0)
-        
         st.download_button(
             label="Baixar Relatório Final (Excel)",
             data=output,
             file_name=f"relatorio_consolidado_{start_date_str}_a_{end_date_str}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        
+
     except pyodbc.Error as e:
         st.error(f"Erro relacionado ao ODBC: {e}")
     except Exception as ex:
