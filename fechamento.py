@@ -296,7 +296,7 @@ if st.button("Gerar Relatório Consolidado"):
             # Aba Resultado
             worksheet_result = workbook.add_worksheet('Resultado')
             result_headers = ["ID Empresa", "Nome empresa", "Data emissão", "Vendas em dinheiro",
-                              "Valor transferência", "Depósitos", "Saídas", "Transf x Deposito", "Falta depositar"]
+                              "Valor transferência", "Diferença", "Depósitos", "Saídas", "Transf x Deposito", "Falta depositar"]
             for col_num, header in enumerate(result_headers):
                 worksheet_result.write(0, col_num, header)
 
@@ -308,10 +308,11 @@ if st.button("Gerar Relatório Consolidado"):
                 worksheet_result.write(r - 1, 2, start_date.strftime("%d/%m/%Y"))
                 worksheet_result.write_formula(r - 1, 3, f"=SUMIFS(FechamentoCaixa!H:H,FechamentoCaixa!A:A,Resultado!A{r},FechamentoCaixa!D:D,Resultado!C{r})")
                 worksheet_result.write_formula(r - 1, 4, f"=SUMIFS(FechamentoCaixa!J:J,FechamentoCaixa!A:A,Resultado!A{r},FechamentoCaixa!D:D,Resultado!C{r})")
-                worksheet_result.write_formula(r - 1, 5, f'=SUMIFS(Relatorio!H:H,Relatorio!A:A,Resultado!A{r},Relatorio!J:J,Resultado!C{r},Relatorio!D:D,"FINANCEIRO PARA FINANCEIRO")')
-                worksheet_result.write_formula(r - 1, 6, f'=SUMIFS(\'Contas a Pagar\'!H:H,\'Contas a Pagar\'!A:A,Resultado!A{r},\'Contas a Pagar\'!E:E,Resultado!C{r},\'Contas a Pagar\'!I:I,"Saídas")')
-                worksheet_result.write_formula(r - 1, 7, f"=E{r} - F{r}")
-                worksheet_result.write_formula(r - 1, 8, f"=E{r} - G{r} - F{r}")
+                worksheet_result.write_formula(r - 1, 5, f"=D{r}-E{r}")
+                worksheet_result.write_formula(r - 1, 6, f'=SUMIFS(Relatorio!H:H,Relatorio!A:A,Resultado!A{r},Relatorio!J:J,Resultado!C{r},Relatorio!D:D,"FINANCEIRO PARA FINANCEIRO")')
+                worksheet_result.write_formula(r - 1, 7, f'=SUMIFS(\'Contas a Pagar\'!H:H,\'Contas a Pagar\'!A:A,Resultado!A{r},\'Contas a Pagar\'!E:E,Resultado!C{r},\'Contas a Pagar\'!I:I,"Saídas")')
+                worksheet_result.write_formula(r - 1, 8, f"=E{r} - G{r}")
+                worksheet_result.write_formula(r - 1, 9, f"=E{r} - H{r} - G{r}")
 
             n_cols_result = len(result_headers)
             col_widths = []
