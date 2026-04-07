@@ -102,7 +102,7 @@ def format_worksheet_as_table(worksheet, df, table_name):
         if df.empty:
             max_len = len(str(col))
         else:
-            max_data = df[col].astype(str).map(len).max()
+            max_data = df[col].astype(str).str.len().max()
             max_len = max(int(max_data) if pd.notna(max_data) else 0, len(str(col)))
         worksheet.set_column(i, i, max_len + 2)
     n_rows, n_cols = df.shape
