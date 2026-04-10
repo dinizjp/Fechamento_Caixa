@@ -1,40 +1,43 @@
 # Fechamento_Caixa
 
-## Descrição
-O projeto **Fechamento_Caixa** é um sistema que realiza consultas e geração de relatórios relacionados ao fechamento de caixa, transferências, contas a pagar, e conferências de sangrias e vendas. Ele utiliza conexão com banco de dados SQL Server para extrair, processar e exibir informações relevantes por meio de uma interface web criada com Streamlit.
-
-## Sumário
-- [Dependências](#dependências)
-- [Instalação](#instalação)
-- [Uso](#uso)
-- [Estrutura de Pastas](#estrutura-de-pastas)
+Aplicação Streamlit que conecta ao banco SQL Server, executa consultas de fechamento de caixa e gera um relatório Excel consolidado por período.
 
 ## Dependências
-As dependências do projeto estão listadas no arquivo `requirements.txt`:
-- streamlit
-- pandas
-- pyodbc
-- python-dotenv
-- xlsxwriter
 
-## Instalação
-Para configurar o ambiente, execute os seguintes comandos:
-```sh
+```
 pip install -r requirements.txt
 ```
 
-## Uso
-Para iniciar a aplicação, execute:
+## Configuração
+
+Crie o arquivo `.streamlit/secrets.toml` com as credenciais do banco:
+
+```toml
+[mssql]
+server="..."
+database="..."
+username="..."
+password="..."
+```
+
+## Como usar
+
 ```sh
 streamlit run fechamento.py
 ```
-Ao abrir a interface web, clique no botão **"Gerar Relatório Consolidado"** para estabelecer conexão com o banco de dados e executar as consultas que irão gerar os relatórios apresentados na aplicação.
 
-## Estrutura de Pastas
-```
-Fechamento_Caixa/
-├── fechamento.py
-├── requirements.txt
-└── .streamlit/
-    └── secrets.toml
-```
+Selecione o período desejado e clique em **"Gerar Relatório Consolidado"**. O Excel será disponibilizado para download com as seguintes abas:
+
+| Aba | Conteúdo |
+|---|---|
+| Resultado | Resumo por empresa e por dia: vendas, transferências, depósitos, parquinho, saídas |
+| Relatorio | Transferências financeiras do período (`Pesquisa_Transferencias_Busca`) |
+| Contas a Pagar | Lançamentos a pagar com categorização "De Para" |
+| FechamentoCaixa | Resumo de fechamento por caixa/dia com conferência de fundo de troco |
+| vendas trocadas | Apuração detalhada de conferência (sistema × operador × gerente) |
+| De para | Tabela de referência para categorização das contas |
+
+## Adicionar nova loja
+
+1. Incluir o ID e nome em `id_empresa_mapping` no `fechamento.py`
+2. Adicionar o ID na cláusula `IN (...)` das 4 queries SQL
