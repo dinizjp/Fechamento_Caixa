@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import pyodbc
 import io
-from datetime import datetime
+from datetime import datetime, timedelta
 from xlsxwriter.utility import xl_col_to_name
 
 st.set_page_config(page_title='Relatório Consolidado', layout='wide')
@@ -296,46 +296,63 @@ if st.button("Gerar Relatório Consolidado"):
             # Aba Resultado
             worksheet_result = workbook.add_worksheet('Resultado')
             result_headers = ["ID Empresa", "Nome empresa", "Data emissão", "Vendas em dinheiro",
-                              "Valor transferência", "Diferença", "Depósitos", "Saídas", "Transf x Deposito", "Falta depositar"]
-            for col_num, header in enumerate(result_headers):
-                worksheet_result.write(0, col_num, header)
+                              "Valor transferência", "Diferença", "Depósitos", "Parquinho", "Saídas", "Transf x Deposito", "Falta depositar"]
 
+            header_fmt = workbook.add_format({'bold': True, 'bg_color': '#4472C4', 'font_color': '#FFFFFF'})
+            even_fmt   = workbook.add_format({'bg_color': '#DCE6F1'})
+            odd_fmt    = workbook.add_format({})
+            date_even_fmt = workbook.add_format({'num_format': 'dd/mm/yyyy', 'bg_color': '#DCE6F1'})
+            date_odd_fmt  = workbook.add_format({'num_format': 'dd/mm/yyyy'})
+
+            date_list = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
             mapping_items = list(id_empresa_mapping.items())
-            for i, (id_emp, nome_emp) in enumerate(mapping_items):
-                r = i + 2  # linha Excel (1-indexed, linha 1 é cabeçalho)
-                worksheet_result.write(r - 1, 0, id_emp)
-                worksheet_result.write(r - 1, 1, nome_emp)
-                worksheet_result.write(r - 1, 2, start_date.strftime("%d/%m/%Y"))
-                worksheet_result.write_formula(r - 1, 3, f"=SUMIFS(FechamentoCaixa!H:H,FechamentoCaixa!A:A,Resultado!A{r},FechamentoCaixa!D:D,Resultado!C{r})")
-                worksheet_result.write_formula(r - 1, 4, f"=SUMIFS(FechamentoCaixa!J:J,FechamentoCaixa!A:A,Resultado!A{r},FechamentoCaixa!D:D,Resultado!C{r})")
-                worksheet_result.write_formula(r - 1, 5, f"=D{r}-E{r}")
-                worksheet_result.write_formula(r - 1, 6, f'=SUMIFS(Relatorio!H:H,Relatorio!A:A,Resultado!A{r},Relatorio!J:J,Resultado!C{r},Relatorio!D:D,"FINANCEIRO PARA FINANCEIRO")')
-                worksheet_result.write_formula(r - 1, 7, f'=SUMIFS(\'Contas a Pagar\'!H:H,\'Contas a Pagar\'!A:A,Resultado!A{r},\'Contas a Pagar\'!E:E,Resultado!C{r},\'Contas a Pagar\'!I:I,"Saídas")')
-                worksheet_result.write_formula(r - 1, 8, f"=E{r} - G{r}")
-                worksheet_result.write_formula(r - 1, 9, f"=E{r} - H{r} - G{r}")
 
-            n_cols_result = len(result_headers)
-            col_widths = []
-            for j in range(n_cols_result):
-                header_len = len(result_headers[j])
-                if j == 0:
-                    max_data_len = max(len(str(id_emp)) for id_emp, _ in mapping_items) if mapping_items else header_len
-                    col_widths.append(max(header_len, max_data_len) + 2)
-                elif j == 1:
-                    max_data_len = max(len(str(nome_emp)) for _, nome_emp in mapping_items) if mapping_items else header_len
-                    col_widths.append(max(header_len, max_data_len) + 2)
-                elif j == 2:
-                    col_widths.append(max(header_len, 10) + 2)
-                else:
-                    col_widths.append(header_len + 5)
+            # Larguras de coluna fixas para a aba inteira
+            max_nome = max(len(nome) for _, nome in mapping_items) if mapping_items else 10
+            col_widths = [
+                max(len(result_headers[0]), 10) + 2,
+                max(len(result_headers[1]), max_nome) + 2,
+                max(len(result_headers[2]), 12) + 2,
+            ] + [len(h) + 5 for h in result_headers[3:]]
             for j, width in enumerate(col_widths):
                 worksheet_result.set_column(j, j, width)
 
-            n_rows_result = len(mapping_items) + 1
-            worksheet_result.add_table(f"A1:{xl_col_to_name(n_cols_result - 1)}{n_rows_result}", {
-                'name': 'TableResultado',
-                'columns': [{'header': h} for h in result_headers]
-            })
+            current_row = 2  # começa na linha 3 do Excel (0-indexed)
+
+            for id_emp, nome_emp in mapping_items:
+                # Cabeçalho do bloco
+                for col_num, header in enumerate(result_headers):
+                    worksheet_result.write(current_row, col_num, header, header_fmt)
+                current_row += 1
+
+                # Uma linha por dia
+                for day_idx, day in enumerate(date_list):
+                    r = current_row + 1  # número da linha Excel (1-indexed)
+                    day_dt = datetime(day.year, day.month, day.day)
+                    row_fmt  = even_fmt      if day_idx % 2 == 0 else odd_fmt
+                    d_fmt    = date_even_fmt if day_idx % 2 == 0 else date_odd_fmt
+
+                    worksheet_result.write(current_row, 0, id_emp, row_fmt)
+                    worksheet_result.write(current_row, 1, nome_emp, row_fmt)
+                    worksheet_result.write_datetime(current_row, 2, day_dt, d_fmt)
+                    worksheet_result.write_formula(current_row, 3, f"=SUMIFS(FechamentoCaixa!H:H,FechamentoCaixa!A:A,Resultado!A{r},FechamentoCaixa!D:D,Resultado!C{r})", row_fmt)
+                    worksheet_result.write_formula(current_row, 4, f"=SUMIFS(FechamentoCaixa!J:J,FechamentoCaixa!A:A,Resultado!A{r},FechamentoCaixa!D:D,Resultado!C{r})", row_fmt)
+                    worksheet_result.write_formula(current_row, 5, f"=D{r}-E{r}", row_fmt)
+                    worksheet_result.write_formula(current_row, 6,
+                        f'=SUMIFS(Relatorio!H:H,Relatorio!A:A,Resultado!A{r},Relatorio!J:J,Resultado!C{r},Relatorio!D:D,"FINANCEIRO PARA FINANCEIRO")-H{r}',
+                        row_fmt)
+                    worksheet_result.write_formula(current_row, 7,
+                        f'=SUMIFS(Relatorio!H:H,Relatorio!A:A,Resultado!A{r},Relatorio!J:J,Resultado!C{r},Relatorio!F:F,"108 - CAIXA TESOURARIA PLAYGROUND*")'
+                        f'+SUMIFS(Relatorio!H:H,Relatorio!A:A,Resultado!A{r},Relatorio!J:J,Resultado!C{r},Relatorio!F:F,"109 - CAIXA TESOURARIA PLAYGROUND BALSAS I")',
+                        row_fmt)
+                    worksheet_result.write_formula(current_row, 8,
+                        f'=SUMIFS(\'Contas a Pagar\'!H:H,\'Contas a Pagar\'!A:A,Resultado!A{r},\'Contas a Pagar\'!E:E,Resultado!C{r},\'Contas a Pagar\'!I:I,"Saídas")',
+                        row_fmt)
+                    worksheet_result.write_formula(current_row, 9,  f"=E{r}-G{r}", row_fmt)
+                    worksheet_result.write_formula(current_row, 10, f"=E{r}-I{r}-G{r}", row_fmt)
+                    current_row += 1
+
+                current_row += 2  # 2 linhas em branco entre empresas
 
             # Abas dos DataFrames
             df1.to_excel(writer, index=False, sheet_name='Relatorio')
