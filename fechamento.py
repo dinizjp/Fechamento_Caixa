@@ -234,6 +234,54 @@ if st.button("Gerar Relatório Consolidado"):
         ORDER BY fc.ID_Caixa;
         """
 
+        sql_query5 = """
+        SELECT
+            vs.ID_Empresa,
+            vs.ID_Venda,
+            vs.ID_Caixa,
+            vs.Data_Faturamento,
+            l.Data_Log AS Data_Cancelamento,
+            vs.Valor_Liquido,
+            f.Descricao [Forma de pagamento],
+            u.Nome [Usuario Cancelamento],
+            l.Descricao_Operacao,
+            l.Justificativa
+        FROM Vendas_Sorveteria vs
+            LEFT JOIN Vendas_Faturamento_Negociacao vf ON
+                vf.ID_Empresa = vs.ID_Empresa AND
+                vf.ID_Venda = vs.ID_Venda
+            LEFT JOIN FormasPagamento f ON
+                f.ID_Forma = vf.ID_Forma_Pagamento
+            LEFT JOIN Usuarios u ON
+                u.ID_Usuario = vs.ID_Usuario_Cancelou
+            LEFT JOIN Log_Liberacoes l ON
+                vs.id_venda =
+                CASE
+                    WHEN
+                        CHARINDEX('Cancelamento da Venda:', l.descricao_operacao) > 0
+                        AND CHARINDEX(' |', l.descricao_operacao) >
+                            CHARINDEX('Cancelamento da Venda:', l.descricao_operacao)
+                    THEN TRY_CONVERT(INT,
+                        SUBSTRING(
+                            l.descricao_operacao,
+                            CHARINDEX('Cancelamento da Venda:', l.descricao_operacao)
+                                + LEN('Cancelamento da Venda: '),
+                            CHARINDEX(' |', l.descricao_operacao)
+                                - (CHARINDEX('Cancelamento da Venda:', l.descricao_operacao)
+                                + LEN('Cancelamento da Venda: '))
+                        )
+                    )
+                    ELSE NULL
+                END
+        WHERE vs.ID_Situacao = 2
+            AND Convert(Date, l.Data_Log) >= ?
+            AND Convert(Date, l.Data_Log) <= ?
+            AND vs.ID_Empresa IN (55,58,57,65,50,66,64,61,60,46,59,56,51,53,52)
+            AND isnull(vs.Recompensa, 'N') = 'N'
+            AND vs.Data_Faturamento IS NOT NULL
+        ORDER BY l.Data_Log
+        """
+
         st.info("Executando Query 1...")
         df1 = query_to_df(cursor, sql_query1, params)
         st.success("Query 1 executada!")
@@ -250,10 +298,14 @@ if st.button("Gerar Relatório Consolidado"):
         df4 = query_to_df(cursor, sql_query4, params)
         st.success("Query 4 executada!")
 
+        st.info("Executando Query 5 (vendas canceladas)...")
+        df5 = query_to_df(cursor, sql_query5, params)
+        st.success("Query 5 executada!")
+
         # --- TRATAMENTO DOS DADOS ---
 
-        # Remover horário das colunas datetime em df1, df2, df3
-        for df in [df1, df2, df3]:
+        # Remover horário das colunas datetime em df1, df2, df3, df5
+        for df in [df1, df2, df3, df5]:
             for col in df.select_dtypes(include=['datetime64']).columns:
                 df[col] = df[col].dt.date
 
@@ -287,6 +339,8 @@ if st.button("Gerar Relatório Consolidado"):
         st.dataframe(df3)
         st.subheader("vendas trocadas")
         st.dataframe(df4)
+        st.subheader("Vendas Canceladas")
+        st.dataframe(df5)
 
         # --- GERAR ARQUIVO EXCEL ---
         output = io.BytesIO()
@@ -370,6 +424,15 @@ if st.button("Gerar Relatório Consolidado"):
 
             df4.to_excel(writer, index=False, sheet_name='vendas trocadas')
             format_worksheet_as_table(writer.sheets["vendas trocadas"], df4, "TableVendasTrocadas")
+
+            df5_export = df5.copy()
+            if 'Valor_Liquido' in df5_export.columns:
+                df5_export['Valor_Liquido'] = df5_export['Valor_Liquido'].apply(
+                    lambda v: f"{float(v):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    if pd.notna(v) else ""
+                )
+            df5_export.to_excel(writer, index=False, sheet_name='Vendas Canceladas')
+            format_worksheet_as_table(writer.sheets["Vendas Canceladas"], df5_export, "TableVendasCanceladas")
 
             mapping_df = pd.DataFrame(list(mapping_dict_plan.items()), columns=["Conta", "De Para"])
             mapping_df.to_excel(writer, index=False, sheet_name="De para")
