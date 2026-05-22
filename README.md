@@ -35,9 +35,10 @@ Selecione o período desejado e clique em **"Gerar Relatório Consolidado"**. O 
 | Contas a Pagar | Lançamentos a pagar com categorização "De Para" |
 | FechamentoCaixa | Resumo de fechamento por caixa/dia com conferência de fundo de troco |
 | vendas trocadas | Apuração detalhada de conferência (sistema × operador × gerente) |
+| Vendas Canceladas | Vendas canceladas do período: empresa, venda, caixa, datas, valor, forma de pagamento, usuário e justificativa |
 | De para | Tabela de referência para categorização das contas |
 
 ## Adicionar nova loja
 
 1. Incluir o ID e nome em `id_empresa_mapping` no `fechamento.py`
-2. Adicionar o ID na cláusula `IN (...)` das 4 queries SQL
+2. Adicionar o ID na cláusula `IN (...)` das 5 queries SQL
